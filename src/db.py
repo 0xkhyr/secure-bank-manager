@@ -74,8 +74,15 @@ def initialiser_base_donnees():
         print(f"✓ Dossier créé : {dossier_data}")
     
     # Créer toutes les tables
-    Base.metadata.create_all(engine)
-    print("✓ Tables créées avec succès")
+    try:
+        Base.metadata.create_all(engine)
+        print("✓ Tables créées avec succès")
+    except Exception as e:
+        # Ignorer l'erreur si la table existe déjà (race condition avec plusieurs workers)
+        if "already exists" in str(e):
+            print("✓ Tables déjà existantes")
+        else:
+            raise e
     
     # Ajouter les utilisateurs par défaut
     creer_utilisateurs_defaut()
