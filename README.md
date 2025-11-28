@@ -11,7 +11,7 @@ Application web interne pour la gestion des clients, comptes et opérations banc
 
 ### 1. Cloner le projet
 ```bash
-git clone <url-du-repo>
+git clone https://github.com/0xkhyr/secure-bank-manager.git
 cd secure-bank-manager
 ```
 
