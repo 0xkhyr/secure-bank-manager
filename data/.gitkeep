@@ -1,0 +1,2 @@
+# Ce dossier contient la base de données SQLite et les fichiers de données
+# Il sera monté comme volume Docker persistant

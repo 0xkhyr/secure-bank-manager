@@ -1,0 +1,142 @@
+{% extends 'base.html' %}
+
+{% block title %}Tableau de Bord - Banque Sécurisée{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+    <h2><i class="bi bi-speedometer2"></i> Tableau de Bord</h2>
+    <p class="text-muted">Bienvenue, <strong>{{ g.user.nom_utilisateur }}</strong> ({{ g.user.role.value }})</p>
+</div>
+
+<!-- Statistiques -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card shadow text-center border-primary">
+            <div class="card-body">
+                <i class="bi bi-people display-4 text-primary"></i>
+                <h3 class="mt-3">{{ stats.total_clients }}</h3>
+                <p class="text-muted mb-0">Clients</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card shadow text-center border-success">
+            <div class="card-body">
+                <i class="bi bi-wallet2 display-4 text-success"></i>
+                <h3 class="mt-3">{{ stats.total_comptes }}</h3>
+                <p class="text-muted mb-0">Comptes</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card shadow text-center border-info">
+            <div class="card-body">
+                <i class="bi bi-arrow-left-right display-4 text-info"></i>
+                <h3 class="mt-3">{{ stats.total_operations }}</h3>
+                <p class="text-muted mb-0">Opérations</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card shadow text-center border-warning">
+            <div class="card-body">
+                <i class="bi bi-cash-stack display-4 text-warning"></i>
+                <h3 class="mt-3">{{ "%.0f"|format(stats.solde_total) }}</h3>
+                <p class="text-muted mb-0">TND Total</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Actions Rapides -->
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card shadow">
+            <div class="card-header bg-light">
+                <h5 class="mb-0"><i class="bi bi-lightning"></i> Actions Rapides</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3 mb-3">
+                        <a href="{{ url_for('clients.index') }}" class="btn btn-outline-primary w-100 py-3">
+                            <i class="bi bi-people"></i><br>
+                            Voir les Clients
+                        </a>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <a href="{{ url_for('clients.create') }}" class="btn btn-outline-success w-100 py-3">
+                            <i class="bi bi-person-plus"></i><br>
+                            Nouveau Client
+                        </a>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <a href="{{ url_for('clients.index') }}" class="btn btn-outline-info w-100 py-3">
+                            <i class="bi bi-search"></i><br>
+                            Rechercher
+                        </a>
+                    </div>
+                    {% if g.user.role.value == 'admin' %}
+                    <div class="col-md-3 mb-3">
+                        <a href="{{ url_for('audit.index') }}" class="btn btn-outline-warning w-100 py-3">
+                            <i class="bi bi-shield-check"></i><br>
+                            Journal d'Audit
+                        </a>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Dernières Opérations -->
+<div class="row">
+    <div class="col-md-12">
+        <div class="card shadow">
+            <div class="card-header bg-light">
+                <h5 class="mb-0"><i class="bi bi-clock-history"></i> Dernières Opérations</h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Compte</th>
+                                <th>Type</th>
+                                <th class="text-end">Montant</th>
+                                <th class="text-end">Solde Après</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for op in operations %}
+                            <tr>
+                                <td>{{ op.date_operation.strftime('%d/%m/%Y %H:%M') }}</td>
+                                <td class="font-monospace">{{ op.compte.numero_compte }}</td>
+                                <td>
+                                    {% if op.type_operation.value == 'depot' %}
+                                        <span class="badge bg-success"><i class="bi bi-arrow-down"></i> Dépôt</span>
+                                    {% else %}
+                                        <span class="badge bg-warning text-dark"><i class="bi bi-arrow-up"></i> Retrait</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-end fw-bold {{ 'text-success' if op.type_operation.value == 'depot' else 'text-danger' }}">
+                                    {{ '+' if op.type_operation.value == 'depot' else '-' }}{{ "%.3f"|format(op.montant) }}
+                                </td>
+                                <td class="text-end">{{ "%.3f"|format(op.solde_apres) }} TND</td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="5" class="text-center py-4 text-muted">
+                                    Aucune opération récente.
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+
+{% block title %}Vérification d'Intégrité{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2>Vérification d'Intégrité du Journal d'Audit</h2>
+                <a href="{{ url_for('audit.index') }}" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left"></i> Retour au Journal
+                </a>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        {% if valide %}
+                            <i class="fas fa-check-circle text-success"></i> Intégrité Validée
+                        {% else %}
+                            <i class="fas fa-exclamation-triangle text-danger"></i> Intégrité Compromise
+                        {% endif %}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if valide %}
+                        <div class="alert alert-success">
+                            <h6 class="alert-heading">✓ Journal Intègre</h6>
+                            <p class="mb-0">Toutes les entrées du journal d'audit sont intactes et n'ont pas été falsifiées.</p>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="card border-success">
+                                    <div class="card-body text-center">
+                                        <i class="fas fa-shield-alt fa-3x text-success mb-3"></i>
+                                        <h5>Chaîne de Hash</h5>
+                                        <p class="text-muted">Toutes les chaînes de hash sont valides</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="card border-success">
+                                    <div class="card-body text-center">
+                                        <i class="fas fa-lock fa-3x text-success mb-3"></i>
+                                        <h5>Signature HMAC</h5>
+                                        <p class="text-muted">Toutes les signatures sont authentiques</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    {% else %}
+                        <div class="alert alert-danger">
+                            <h6 class="alert-heading">✗ Problème d'Intégrité Détecté</h6>
+                            <p class="mb-0">{{ erreurs|length }} erreur(s) trouvée(s) dans le journal d'audit.</p>
+                        </div>
+
+                        <div class="card border-danger">
+                            <div class="card-header bg-danger text-white">
+                                <h6 class="mb-0">Détails des Erreurs</h6>
+                            </div>
+                            <div class="card-body">
+                                <ul class="list-group list-group-flush">
+                                    {% for erreur in erreurs %}
+                                    <li class="list-group-item list-group-item-danger">
+                                        <i class="fas fa-exclamation-circle text-danger me-2"></i>
+                                        {{ erreur }}
+                                    </li>
+                                    {% endfor %}
+                                </ul>
+                            </div>
+                        </div>
+
+                        <div class="alert alert-warning mt-3">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            <strong>Action Requise :</strong> Le journal d'audit a été compromis. 
+                            Contactez immédiatement l'administrateur système et conservez une copie de sauvegarde.
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

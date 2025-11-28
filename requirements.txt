@@ -1,0 +1,24 @@
+# Dépendances Python pour l'application bancaire
+
+# Framework web
+Flask==3.0.0
+Werkzeug==3.0.1
+
+# Base de données
+SQLAlchemy==2.0.23
+
+# Sécurité
+passlib==1.7.4
+bcrypt==4.1.2
+
+# Variables d'environnement
+python-dotenv==1.0.0
+
+# Serveur WSGI
+gunicorn==21.2.0
+
+# Utilitaires
+python-dateutil==2.8.2
+
+# Tests
+pytest==9.0.1

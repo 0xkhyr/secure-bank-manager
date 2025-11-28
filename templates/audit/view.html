@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+
+{% block title %}Détails de l'Audit #{{ entry.id }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2>Détails de l'Audit #{{ entry.id }}</h2>
+                <a href="{{ url_for('audit.index') }}" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left"></i> Retour au Journal
+                </a>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Informations Générales</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <dl class="row">
+                                <dt class="col-sm-4">ID :</dt>
+                                <dd class="col-sm-8">{{ entry.id }}</dd>
+
+                                <dt class="col-sm-4">Horodatage :</dt>
+                                <dd class="col-sm-8">{{ entry.horodatage.strftime('%d/%m/%Y %H:%M:%S') }}</dd>
+
+                                <dt class="col-sm-4">Utilisateur :</dt>
+                                <dd class="col-sm-8">
+                                    {% if entry.utilisateur %}
+                                        {{ entry.utilisateur.nom_utilisateur }} ({{ entry.utilisateur.role.value }})
+                                    {% else %}
+                                        <em>Système</em>
+                                    {% endif %}
+                                </dd>
+
+                                <dt class="col-sm-4">Action :</dt>
+                                <dd class="col-sm-8">
+                                    <span class="badge bg-secondary">{{ entry.action }}</span>
+                                </dd>
+                            </dl>
+                        </div>
+                        <div class="col-md-6">
+                            <dl class="row">
+                                <dt class="col-sm-4">Cible :</dt>
+                                <dd class="col-sm-8">
+                                    {% if entry.cible %}
+                                        {{ entry.cible }}
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </dd>
+
+                                <dt class="col-sm-4">Hash Actuel :</dt>
+                                <dd class="col-sm-8">
+                                    <code class="text-break">{{ entry.hash_actuel[:16] }}...</code>
+                                </dd>
+
+                                <dt class="col-sm-4">Hash Précédent :</dt>
+                                <dd class="col-sm-8">
+                                    {% if entry.hash_precedent %}
+                                        <code class="text-break">{{ entry.hash_precedent[:16] }}...</code>
+                                    {% else %}
+                                        <em>Genesis</em>
+                                    {% endif %}
+                                </dd>
+                            </dl>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {% if details %}
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h5 class="mb-0">Détails de l'Action</h5>
+                </div>
+                <div class="card-body">
+                    <pre class="bg-light p-3 rounded"><code>{{ details | tojson(indent=2) }}</code></pre>
+                </div>
+            </div>
+            {% endif %}
+
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h5 class="mb-0">Sécurité</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>Hash SHA-256</h6>
+                            <p class="text-muted small">{{ entry.hash_actuel }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>Signature HMAC</h6>
+                            <p class="text-muted small">{{ entry.signature_hmac }}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
