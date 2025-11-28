@@ -13,6 +13,7 @@ dans le conteneur Docker.
 
 import os
 from sqlalchemy import create_engine, text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import sessionmaker, scoped_session
 from passlib.hash import bcrypt
 
@@ -130,6 +131,9 @@ def creer_utilisateurs_defaut():
         else:
             print(f"✓ Base de données déjà initialisée ({nombre_utilisateurs} utilisateurs)")
             
+    except IntegrityError:
+        session.rollback()
+        print("✓ Utilisateurs déjà créés par un autre worker")
     except Exception as e:
         session.rollback()
         print(f"✗ Erreur lors de la création des utilisateurs : {e}")
