@@ -1,102 +1,48 @@
 {% extends "base.html" %}
 
-{% block title %}Détails de l'Audit #{{ entry.id }}{% endblock %}
+{% block title %}Entrée Audit #{{ entry.id }} - SecureBank{% endblock %}
 
 {% block content %}
-<div class="container mt-4">
-    <div class="row">
-        <div class="col-md-12">
-            <div class="d-flex justify-content-between align-items-center mb-4">
-                <h2>Détails de l'Audit #{{ entry.id }}</h2>
-                <a href="{{ url_for('audit.index') }}" class="btn btn-secondary">
-                    <i class="fas fa-arrow-left"></i> Retour au Journal
-                </a>
-            </div>
+<div style="max-width: 1200px; margin: 0 auto;">
+    <div style="max-width: 800px; margin: 0 auto;">
+        <div style="margin-bottom: 16px;">
+            <a href="{{ url_for('audit.index') }}" style="color: var(--text-secondary); text-decoration: none; font-size: 14px;">← Retour au journal</a>
+        </div>
 
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="mb-0">Informations Générales</h5>
+        <h1 style="font-size: 24px; font-weight: 400; margin-bottom: 24px;">Entrée d'Audit #{{ entry.id }}</h1>
+        <div class="card">
+            <div class="card-header">Informations</div>
+            <div class="card-body">
+                <div style="margin-bottom: 20px;">
+                    <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">Horodatage</div>
+                    <div style="font-weight: 500;">{{ entry.horodatage.strftime('%d/%m/%Y %H:%M:%S') }}</div>
                 </div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-6">
-                            <dl class="row">
-                                <dt class="col-sm-4">ID :</dt>
-                                <dd class="col-sm-8">{{ entry.id }}</dd>
-
-                                <dt class="col-sm-4">Horodatage :</dt>
-                                <dd class="col-sm-8">{{ entry.horodatage.strftime('%d/%m/%Y %H:%M:%S') }}</dd>
-
-                                <dt class="col-sm-4">Utilisateur :</dt>
-                                <dd class="col-sm-8">
-                                    {% if entry.utilisateur %}
-                                        {{ entry.utilisateur.nom_utilisateur }} ({{ entry.utilisateur.role.value }})
-                                    {% else %}
-                                        <em>Système</em>
-                                    {% endif %}
-                                </dd>
-
-                                <dt class="col-sm-4">Action :</dt>
-                                <dd class="col-sm-8">
-                                    <span class="badge bg-secondary">{{ entry.action }}</span>
-                                </dd>
-                            </dl>
-                        </div>
-                        <div class="col-md-6">
-                            <dl class="row">
-                                <dt class="col-sm-4">Cible :</dt>
-                                <dd class="col-sm-8">
-                                    {% if entry.cible %}
-                                        {{ entry.cible }}
-                                    {% else %}
-                                        -
-                                    {% endif %}
-                                </dd>
-
-                                <dt class="col-sm-4">Hash Actuel :</dt>
-                                <dd class="col-sm-8">
-                                    <code class="text-break">{{ entry.hash_actuel[:16] }}...</code>
-                                </dd>
-
-                                <dt class="col-sm-4">Hash Précédent :</dt>
-                                <dd class="col-sm-8">
-                                    {% if entry.hash_precedent %}
-                                        <code class="text-break">{{ entry.hash_precedent[:16] }}...</code>
-                                    {% else %}
-                                        <em>Genesis</em>
-                                    {% endif %}
-                                </dd>
-                            </dl>
-                        </div>
+                <div style="margin-bottom: 20px;">
+                    <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">Utilisateur</div>
+                    <div>
+                        {% if entry.utilisateur %}
+                            {{ entry.utilisateur.nom_utilisateur }}
+                        {% else %}
+                            <em>Système</em>
+                        {% endif %}
                     </div>
                 </div>
-            </div>
-
-            {% if details %}
-            <div class="card mt-3">
-                <div class="card-header">
-                    <h5 class="mb-0">Détails de l'Action</h5>
+                <div style="margin-bottom: 20px;">
+                    <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">Action</div>
+                    <div><span class="badge bg-secondary">{{ entry.action }}</span></div>
                 </div>
-                <div class="card-body">
-                    <pre class="bg-light p-3 rounded"><code>{{ details | tojson(indent=2) }}</code></pre>
+                <div style="margin-bottom: 20px;">
+                    <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">Cible</div>
+                    <div>{{ entry.cible or '-' }}</div>
                 </div>
-            </div>
-            {% endif %}
-
-            <div class="card mt-3">
-                <div class="card-header">
-                    <h5 class="mb-0">Sécurité</h5>
+                <div style="margin-bottom: 20px;">
+                    <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">Détails</div>
+                    <div style="background: var(--background); padding: 12px; border-radius: 4px; font-family: monospace; font-size: 13px; white-space: pre-wrap;">{{ entry.details|decode_json }}</div>
                 </div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-6">
-                            <h6>Hash SHA-256</h6>
-                            <p class="text-muted small">{{ entry.hash_actuel }}</p>
-                        </div>
-                        <div class="col-md-6">
-                            <h6>Signature HMAC</h6>
-                            <p class="text-muted small">{{ entry.signature_hmac }}</p>
-                        </div>
+                <div>
+                    <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">Signature (HMAC)</div>
+                    <div style="background: var(--background); padding: 12px; border-radius: 4px; font-family: monospace; font-size: 11px; word-break: break-all;">
+                        {{ entry.signature_hmac }}
                     </div>
                 </div>
             </div>

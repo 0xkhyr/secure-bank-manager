@@ -27,9 +27,11 @@ class RoleUtilisateur(enum.Enum):
     """
     Énumération des rôles utilisateurs.
     
-    ADMIN : Accès complet à toutes les fonctionnalités
-    OPERATEUR : Accès limité (consultation + opérations bancaires uniquement)
+    SUPERADMIN : Accès total - Peut gérer tous les utilisateurs (Admins + Opérateurs)
+    ADMIN : Accès complet - Peut gérer uniquement les Opérateurs
+    OPERATEUR : Accès limité - Consultation + opérations bancaires uniquement
     """
+    SUPERADMIN = "superadmin"
     ADMIN = "admin"
     OPERATEUR = "operateur"
 
@@ -90,6 +92,12 @@ class Utilisateur(Base):
     # Champs pour le verrouillage après tentatives échouées
     tentatives_echouees = Column(Integer, default=0, nullable=False)
     verrouille_jusqu_a = Column(DateTime, nullable=True)  # Date de fin de verrouillage (UTC)
+    verrouille_raison = Column(String(500), nullable=True)  # Raison du verrouillage
+    verrouille_par_id = Column(Integer, ForeignKey('utilisateurs.id', ondelete='SET NULL'), nullable=True)  # Admin qui a verrouillé
+    verrouille_le = Column(DateTime, nullable=True)  # Date du verrouillage (UTC)
+
+    # Profile: display name (optional)
+    display_name = Column(String(100), nullable=True)
     
     # Relations
     journaux = relationship('Journal', back_populates='utilisateur', lazy='dynamic')
@@ -229,6 +237,7 @@ class Operation(Base):
     Attributs :
         id : Identifiant unique
         compte_id : Référence vers le compte concerné
+        utilisateur_id : Référence vers l'utilisateur qui a effectué l'opération
         type_operation : Type d'opération (DEPOT ou RETRAIT)
         montant : Montant de l'opération
         solde_avant : Solde avant l'opération
@@ -238,6 +247,7 @@ class Operation(Base):
     
     Relations :
         compte : Compte bancaire concerné
+        utilisateur : Utilisateur qui a effectué l'opération
     
     Règles métier :
         - Dépôt : aucune limite
@@ -247,6 +257,7 @@ class Operation(Base):
     
     id = Column(Integer, primary_key=True, autoincrement=True)
     compte_id = Column(Integer, ForeignKey('comptes.id', ondelete='CASCADE'), nullable=False)
+    utilisateur_id = Column(Integer, ForeignKey('utilisateurs.id', ondelete='SET NULL'), nullable=True)
     type_operation = Column(Enum(TypeOperation), nullable=False)
     montant = Column(Numeric(12,3), nullable=False)
     solde_avant = Column(Numeric(12,3), nullable=False)
@@ -256,6 +267,7 @@ class Operation(Base):
     
     # Relations
     compte = relationship('Compte', back_populates='operations')
+    utilisateur = relationship('Utilisateur')
 
 
     def validate_business_rules(self):

@@ -3,51 +3,46 @@
 {% block title %}Dépôt - Compte {{ compte.numero_compte }}{% endblock %}
 
 {% block content %}
-<div class="row justify-content-center">
-    <div class="col-md-6">
-        <div class="card shadow border-success">
-            <div class="card-header bg-success text-white">
-                <h4 class="mb-0"><i class="bi bi-arrow-down-circle"></i> Effectuer un Dépôt</h4>
+<div style="max-width: 1200px; margin: 0 auto;">
+    <div style="max-width: 600px; margin: 0 auto;">
+        <h1 style="font-size: 24px; font-weight: 400; margin-bottom: 24px;">Effectuer un Dépôt</h1>
+    <div class="card" style="border-color: var(--success);">
+        <div class="card-body">
+            <div style="background: #e6f4ea; border: 1px solid #34a853; border-radius: 4px; padding: 16px; margin-bottom: 24px;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                    <span style="color: var(--text-secondary); font-size: 14px;">Compte :</span>
+                    <strong style="font-family: monospace;">{{ compte.numero_compte }}</strong>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                    <span style="color: var(--text-secondary); font-size: 14px;">Solde actuel :</span>
+                    <strong style="color: #137333;">{{ "%.3f"|format(compte.solde) }} {{ config.DEVISE }}</strong>
+                </div>
             </div>
-            <div class="card-body p-4">
-                <div class="alert alert-light border">
-                    <div class="d-flex justify-content-between mb-2">
-                        <span class="text-muted">Compte :</span>
-                        <strong class="font-monospace">{{ compte.numero_compte }}</strong>
+
+            <form method="post">
+                <div class="mb-3">
+                    <label for="montant" class="form-label">Montant à déposer *</label>
+                    <div style="display: flex; gap: 8px;">
+                        <input type="number" step="0.001" class="form-control" id="montant" name="montant" 
+                               min="0.001" required autofocus style="flex: 1; font-size: 16px;">
+                        <span style="padding: 10px 16px; border: 1px solid var(--border); border-radius: 4px; background: var(--background);">{{ config.DEVISE }}</span>
                     </div>
-                    <div class="d-flex justify-content-between">
-                        <span class="text-muted">Solde actuel :</span>
-                        <strong class="text-success">{{ "%.3f"|format(compte.solde) }} {{ config.DEVISE }}</strong>
+                    <div style="font-size: 12px; color: #137333; margin-top: 8px;">
+                        Aucune limite de montant pour les dépôts.
                     </div>
                 </div>
 
-                <form method="post">
-                    <div class="mb-3">
-                        <label for="montant" class="form-label">Montant à déposer *</label>
-                        <div class="input-group input-group-lg">
-                            <input type="number" step="0.001" class="form-control" id="montant" name="montant" 
-                                   min="0.001" required autofocus>
-                            <span class="input-group-text">{{ config.DEVISE }}</span>
-                        </div>
-                        <div class="form-text text-success">
-                            <i class="bi bi-info-circle"></i> Aucune limite de montant pour les dépôts.
-                        </div>
-                    </div>
+                <div class="mb-4">
+                    <label for="description" class="form-label">Description (optionnel)</label>
+                    <input type="text" class="form-control" id="description" name="description" 
+                           placeholder="Ex: Dépôt espèces">
+                </div>
 
-                    <div class="mb-4">
-                        <label for="description" class="form-label">Description (optionnel)</label>
-                        <input type="text" class="form-control" id="description" name="description" 
-                               placeholder="Ex: Dépôt espèces">
-                    </div>
-
-                    <div class="d-flex justify-content-between">
-                        <a href="{{ url_for('accounts.view', id=compte.id) }}" class="btn btn-outline-secondary">Annuler</a>
-                        <button type="submit" class="btn btn-success btn-lg">
-                            <i class="bi bi-check-circle"></i> Confirmer le Dépôt
-                        </button>
-                    </div>
-                </form>
-            </div>
+                <div style="display: flex; justify-content: space-between; margin-top: 32px;">
+                    <a href="{{ url_for('accounts.view', id=compte.id) }}" class="btn">Annuler</a>
+                    <button type="submit" class="btn btn-primary" style="background: #1e8e3e; border-color: #1e8e3e;">Confirmer le Dépôt</button>
+                </div>
+            </form>
         </div>
     </div>
 </div>

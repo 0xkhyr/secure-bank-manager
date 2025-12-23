@@ -26,10 +26,24 @@ class Config:
     
     # Sécurité
     HMAC_SECRET_KEY = os.getenv('HMAC_SECRET_KEY', 'change-this-hmac-key')
-    MAX_LOGIN_ATTEMPTS = int(os.getenv('MAX_LOGIN_ATTEMPTS', '3'))
+    MAX_LOGIN_ATTEMPTS = int(os.getenv('MAX_LOGIN_ATTEMPTS', '5'))
     SESSION_TIMEOUT = int(os.getenv('SESSION_TIMEOUT', '3600'))  # en secondes
+    
+    # Timezone - Tunisie (UTC+1)
+    TIMEZONE_OFFSET_HOURS = int(os.getenv('TIMEZONE_OFFSET_HOURS', '1'))
     # Durée du verrouillage après dépassement des tentatives (en minutes)
     LOCKOUT_MINUTES = int(os.getenv('LOCKOUT_MINUTES', '15'))
+
+    # Rate limiting configuration (used to mitigate lockout DoS)
+    # Format is the same as Flask-Limiter limits, e.g. '10 per minute'
+    LOGIN_RATE_LIMIT = os.getenv('LOGIN_RATE_LIMIT', '10 per minute')
+    RATE_LIMIT_STORAGE_URI = os.getenv('RATE_LIMIT_STORAGE_URI', 'memory://')
+
+    # Session cookie hardening (defaults safe for production; can be overridden in dev via env)
+    # Use '1' to enable SESSION_COOKIE_SECURE in environments behind HTTPS
+    SESSION_COOKIE_SECURE = os.getenv('SESSION_COOKIE_SECURE', '0') == '1'
+    SESSION_COOKIE_HTTPONLY = os.getenv('SESSION_COOKIE_HTTPONLY', '1') == '1'
+    SESSION_COOKIE_SAMESITE = os.getenv('SESSION_COOKIE_SAMESITE', 'Lax')
     
     # Règles métier bancaires (Tunisie - Dinar Tunisien)
     DEVISE = os.getenv('DEVISE', 'TND')

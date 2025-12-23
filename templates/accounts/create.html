@@ -1,40 +1,35 @@
 {% extends 'base.html' %}
 
-{% block title %}Nouveau Compte - Banque Sécurisée{% endblock %}
+{% block title %}Nouveau Compte - SecureBank{% endblock %}
 
 {% block content %}
-<div class="row justify-content-center">
-    <div class="col-md-6">
-        <div class="card shadow">
-            <div class="card-header bg-primary text-white">
-                <h4 class="mb-0"><i class="bi bi-wallet2"></i> Ouverture de Compte</h4>
+<div style="max-width: 1200px; margin: 0 auto;">
+    <div style="max-width: 600px; margin: 0 auto;">
+        <h1 style="font-size: 24px; font-weight: 400; margin-bottom: 24px;">Ouverture de Compte</h1>
+    <div class="card">
+        <div class="card-body">
+            <div class="alert alert-info" style="margin-bottom: 24px;">
+                Client : <strong>{{ client.nom_complet }}</strong> ({{ client.cin }})
             </div>
-            <div class="card-body p-4">
-                <div class="alert alert-info">
-                    <i class="bi bi-info-circle"></i> Client : <strong>{{ client.nom_complet }}</strong> ({{ client.cin }})
+
+            <form method="post">
+                <div class="mb-4">
+                    <label for="montant_initial" class="form-label">Dépôt Initial (Minimum {{ config.SOLDE_MINIMUM_INITIAL }} {{ config.DEVISE }}) *</label>
+                    <div style="display: flex; gap: 8px;">
+                        <input type="number" step="0.001" class="form-control" id="montant_initial" name="montant_initial" 
+                               min="{{ config.SOLDE_MINIMUM_INITIAL }}" value="{{ config.SOLDE_MINIMUM_INITIAL }}" required style="flex: 1;">
+                        <span style="padding: 10px 16px; border: 1px solid var(--border); border-radius: 4px; background: var(--background); color: var(--text-secondary);">{{ config.DEVISE }}</span>
+                    </div>
+                    <div style="font-size: 12px; color: var(--text-secondary); margin-top: 8px;">
+                        Le solde minimum à l'ouverture est fixé par la politique de la banque.
+                    </div>
                 </div>
 
-                <form method="post">
-                    <div class="mb-4">
-                        <label for="montant_initial" class="form-label">Dépôt Initial (Minimum {{ config.SOLDE_MINIMUM_INITIAL }} {{ config.DEVISE }}) *</label>
-                        <div class="input-group">
-                            <input type="number" step="0.001" class="form-control" id="montant_initial" name="montant_initial" 
-                                   min="{{ config.SOLDE_MINIMUM_INITIAL }}" value="{{ config.SOLDE_MINIMUM_INITIAL }}" required>
-                            <span class="input-group-text">{{ config.DEVISE }}</span>
-                        </div>
-                        <div class="form-text">
-                            Le solde minimum à l'ouverture est fixé par la politique de la banque.
-                        </div>
-                    </div>
-
-                    <div class="d-flex justify-content-between">
-                        <a href="{{ url_for('clients.view', id=client.id) }}" class="btn btn-outline-secondary">Annuler</a>
-                        <button type="submit" class="btn btn-success">
-                            <i class="bi bi-check-circle"></i> Ouvrir le Compte
-                        </button>
-                    </div>
-                </form>
-            </div>
+                <div style="display: flex; justify-content: space-between; margin-top: 32px;">
+                    <a href="{{ url_for('clients.view', id=client.id) }}" class="btn">Annuler</a>
+                    <button type="submit" class="btn btn-primary">Ouvrir le Compte</button>
+                </div>
+            </form>
         </div>
     </div>
 </div>

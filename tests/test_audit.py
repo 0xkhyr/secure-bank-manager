@@ -16,12 +16,17 @@ import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from src.audit_logger import log_action, verifier_integrite, calculer_hash, calculer_hmac
-from src.db import obtenir_session
+from src.db import obtenir_session, reinitialiser_base_donnees
 from src.models import Journal
 
 class TestAudit(unittest.TestCase):
     """Tests pour le système d'audit."""
-    
+
+    @classmethod
+    def setUpClass(cls):
+        # Ensure clean DB so logs are fresh and integrity is self-consistent
+        reinitialiser_base_donnees()
+
     def test_creation_log(self):
         """Vérifie qu'un log peut être créé."""
         resultat = log_action(1, "TEST_ACTION", "Test", {"test": "valeur"})

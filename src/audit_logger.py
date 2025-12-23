@@ -49,7 +49,7 @@ def log_action(utilisateur_id, action, cible=None, details=None):
     session = obtenir_session()
     try:
         # 1. Préparer les données
-        details_json = json.dumps(details) if details else None
+        details_json = json.dumps(details, ensure_ascii=False) if details else None
         horodatage = datetime.utcnow()
         
         # 2. Récupérer le hash du dernier log pour la chaîne
@@ -85,8 +85,6 @@ def log_action(utilisateur_id, action, cible=None, details=None):
         print(f"Erreur d'audit : {e}")
         session.rollback()
         return False
-    # Note: Don't close the session here as it might interfere with other operations
-    # The scoped session will be cleaned up automatically
 
 def verifier_integrite():
     """
@@ -151,6 +149,7 @@ audit_bp = Blueprint('audit', __name__, url_prefix='/audit')
 @permission_required('audit.view')
 def index():
     """Affiche la liste des entrées du journal d'audit."""
+    from flask import g
     page = int(request.args.get('page', 1))
     per_page = 50
     
@@ -165,23 +164,55 @@ def index():
         .all()
     session.close()
     
+    # Logger l'accès au journal d'audit
+    log_action(g.user.id, "CONSULTATION_AUDIT", "Journal",
+               {"page": page, "total_entrees": total_entries})
+    
     total_pages = (total_entries + per_page - 1) // per_page
     
+    # Convert UTC times to local for display
+    from datetime import timedelta
+    from src.config import Config
+    entries_local = []
+    for entry in entries:
+        # Create a simple object to hold user info
+        user_obj = None
+        if entry.utilisateur:
+            user_obj = type('obj', (object,), {
+                'nom_utilisateur': entry.utilisateur.nom_utilisateur
+            })()
+        
+        entry_dict = {
+            'id': entry.id,
+            'horodatage': entry.horodatage + timedelta(hours=Config.TIMEZONE_OFFSET_HOURS),
+            'utilisateur_id': entry.utilisateur_id,
+            'utilisateur': user_obj,
+            'action': entry.action,
+            'cible': entry.cible
+        }
+        entries_local.append(type('obj', (object,), entry_dict)())
+    
     return render_template('audit/index.html', 
-                         entries=entries, 
+                         entries=entries_local, 
                          page=page, 
                          total_pages=total_pages,
                          total_entries=total_entries)
 
-@audit_bp.route('/verifier')
+@audit_bp.route('/verifier', methods=('GET', 'POST'))
 @permission_required('audit.verify')
 def verify():
     """Vérifie l'intégrité du journal d'audit."""
+    from flask import g
     valide, erreurs = verifier_integrite()
     
+    # Logger la vérification d'intégrité
     if valide:
+        log_action(g.user.id, "VERIFICATION_INTEGRITE_AUDIT", "Journal",
+                   {"resultat": "valide", "nb_entrees_verifiees": "toutes"})
         flash('L\'intégrité du journal d\'audit est validée.', 'success')
     else:
+        log_action(g.user.id, "VERIFICATION_INTEGRITE_AUDIT", "Journal",
+                   {"resultat": "compromis", "nb_erreurs": len(erreurs), "erreurs": erreurs[:5]})
         flash(f'L\'intégrité du journal est compromise ! {len(erreurs)} erreur(s) détectée(s).', 'danger')
     
     return render_template('audit/verify.html', valide=valide, erreurs=erreurs)
@@ -190,6 +221,7 @@ def verify():
 @permission_required('audit.view')
 def view(id):
     """Affiche les détails d'une entrée d'audit."""
+    from flask import g
     session = obtenir_session()
     entry = session.query(Journal)\
         .options(joinedload(Journal.utilisateur))\
@@ -201,6 +233,10 @@ def view(id):
         flash('Entrée d\'audit introuvable.', 'danger')
         return redirect(url_for('audit.index'))
     
+    # Logger la consultation de cette entrée
+    log_action(g.user.id, "CONSULTATION_AUDIT", f"Entrée {id}",
+               {"entry_id": id, "action_consultee": entry.action})
+    
     # Parser les détails JSON si présents
     details = None
     if entry.details:
@@ -209,7 +245,31 @@ def view(id):
         except:
             details = entry.details
     
-    return render_template('audit/view.html', entry=entry, details=details)
+    # Convert to local time for display
+    from datetime import timedelta
+    from src.config import Config
+    
+    # Create user object if available
+    user_obj = None
+    if entry.utilisateur:
+        user_obj = type('obj', (object,), {
+            'nom_utilisateur': entry.utilisateur.nom_utilisateur
+        })()
+    
+    entry_local = type('obj', (object,), {
+        'id': entry.id,
+        'horodatage': entry.horodatage + timedelta(hours=Config.TIMEZONE_OFFSET_HOURS),
+        'utilisateur_id': entry.utilisateur_id,
+        'utilisateur': user_obj,
+        'action': entry.action,
+        'cible': entry.cible,
+        'details': entry.details,
+        'hash_precedent': entry.hash_precedent,
+        'hash_actuel': entry.hash_actuel,
+        'signature_hmac': entry.signature_hmac
+    })()
+    
+    return render_template('audit/view.html', entry=entry_local, details=details)
 
 if __name__ == '__main__':
     # Test rapide si exécuté directement

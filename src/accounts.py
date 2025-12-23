@@ -60,6 +60,7 @@ def create(client_id):
                 # 2. Créer l'opération de dépôt initial
                 operation = Operation(
                     compte_id=nouveau_compte.id,
+                    utilisateur_id=g.user.id,
                     type_operation=TypeOperation.DEPOT,
                     montant=montant,
                     solde_avant=0,
@@ -103,12 +104,21 @@ def view(id):
         session.close()
         flash('Compte introuvable.', 'danger')
         return redirect(url_for('clients.index'))
+    
+    # Accéder au client_id avant de fermer la session
+    client_id = compte.client_id
         
     # Charger l'historique des opérations (plus récent en premier)
     operations = session.query(Operation).filter_by(compte_id=id).order_by(Operation.date_operation.desc()).all()
+    nb_operations = len(operations)
     session.close()
     
-    return render_template('accounts/view.html', compte=compte, operations=operations)
+    # Logger la consultation du compte et de l'historique
+    log_action(g.user.id, "CONSULTATION_COMPTE", f"Compte {compte.numero_compte}",
+               {"compte_id": id, "numero_compte": compte.numero_compte, 
+                "client_id": client_id, "nb_operations": nb_operations})
+    
+    return render_template('accounts/view.html', compte=compte, client_id=client_id, operations=operations)
 
 @accounts_bp.route('/<int:id>/cloturer', methods=('POST',))
 @permission_required('accounts.close')
@@ -129,11 +139,17 @@ def close(id):
         session.close()
         flash('Impossible de clôturer un compte avec un solde positif. Veuillez tout retirer d\'abord.', 'danger')
         return redirect(url_for('accounts.view', id=id))
+    
+    # Récupérer la raison de clôture
+    raison = request.form.get('raison', 'Demande client')
+    
+    # Extraire client_id avant de fermer la session
+    client_id = compte.client_id
         
     try:
         compte.statut = StatutCompte.FERME
         log_action(g.user.id, "CLOTURE_COMPTE", f"Compte {compte.numero_compte}", 
-                   {"raison": "Demande client"})
+                   {"raison": raison})
         session.commit()
         flash('Compte clôturé avec succès.', 'success')
     except Exception as e:
@@ -141,4 +157,44 @@ def close(id):
         flash(f'Erreur : {e}', 'danger')
         
     session.close()
-    return redirect(url_for('clients.view', id=compte.client_id))
+    return redirect(url_for('clients.view', id=client_id))
+
+
+@accounts_bp.route('/<int:id>/reopen', methods=('POST',))
+@permission_required('accounts.close')  # Same permission as closing
+def reopen(id):
+    """
+    Réouvre un compte bancaire fermé.
+    Permet à un administrateur de réactiver un compte clôturé.
+    """
+    session = obtenir_session()
+    compte = session.query(Compte).filter_by(id=id).first()
+    
+    if compte is None:
+        session.close()
+        flash('Compte introuvable.', 'danger')
+        return redirect(url_for('clients.index'))
+    
+    if compte.statut.value != 'ferme':
+        session.close()
+        flash('Ce compte n\'est pas fermé.', 'danger')
+        return redirect(url_for('accounts.view', id=id))
+    
+    # Récupérer la raison de réouverture
+    raison = request.form.get('raison', 'Décision administrative')
+    
+    # Extraire compte_id avant de fermer la session
+    compte_id = compte.id
+        
+    try:
+        compte.statut = StatutCompte.ACTIF
+        log_action(g.user.id, "REOUVERTURE_COMPTE", f"Compte {compte.numero_compte}", 
+                   {"raison": raison})
+        session.commit()
+        flash('Compte réouvert avec succès.', 'success')
+    except Exception as e:
+        session.rollback()
+        flash(f'Erreur : {e}', 'danger')
+        
+    session.close()
+    return redirect(url_for('accounts.view', id=compte_id))

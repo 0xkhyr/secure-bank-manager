@@ -32,6 +32,14 @@ def depot(compte_id):
         session.close()
         flash('Compte introuvable.', 'danger')
         return redirect(url_for('clients.index'))
+    
+    # Vérifier que le compte est actif
+    if compte.statut.value != 'actif':
+        log_action(g.user.id, "ECHEC_DEPOT", f"Compte {compte.numero_compte}",
+                   {"raison": "compte_inactif", "statut": compte.statut.value})
+        session.close()
+        flash('Opération impossible : le compte n\'est pas actif.', 'danger')
+        return redirect(url_for('accounts.view', id=compte_id))
 
     if request.method == 'POST':
         montant_str = request.form['montant']
@@ -42,8 +50,12 @@ def depot(compte_id):
             montant = Decimal(montant_str)
             if montant <= 0:
                 error = 'Le montant doit être supérieur à 0.'
+                log_action(g.user.id, "ECHEC_DEPOT", f"Compte {compte.numero_compte}",
+                           {"raison": "montant_invalide", "montant": montant_str})
         except:
             error = 'Montant invalide.'
+            log_action(g.user.id, "ECHEC_DEPOT", f"Compte {compte.numero_compte}",
+                       {"raison": "montant_invalide", "montant": montant_str})
 
         if error is None:
             try:
@@ -56,6 +68,7 @@ def depot(compte_id):
                 # 3. Créer l'opération
                 operation = Operation(
                     compte_id=compte.id,
+                    utilisateur_id=g.user.id,
                     type_operation=TypeOperation.DEPOT,
                     montant=montant,
                     solde_avant=solde_avant,
@@ -76,10 +89,16 @@ def depot(compte_id):
                 
             except Exception as e:
                 session.rollback()
+                log_action(g.user.id, "ECHEC_DEPOT", f"Compte {compte.numero_compte}",
+                           {"raison": "exception_systeme", "erreur": str(e), "montant": str(montant)})
                 error = f"Erreur lors du dépôt : {e}"
 
         if error is not None:
             flash(error, 'danger')
+    else:
+        # GET request - Logger l'accès au formulaire
+        log_action(g.user.id, "ACCES_FORMULAIRE_DEPOT", f"Compte {compte.numero_compte}",
+                   {"compte_id": compte_id, "numero_compte": compte.numero_compte})
     
     # Rendre le template
     result = render_template('operations/depot.html', compte=compte, config=Config)
@@ -100,6 +119,14 @@ def retrait(compte_id):
         session.close()
         flash('Compte introuvable.', 'danger')
         return redirect(url_for('clients.index'))
+    
+    # Vérifier que le compte est actif
+    if compte.statut.value != 'actif':
+        log_action(g.user.id, "ECHEC_RETRAIT", f"Compte {compte.numero_compte}",
+                   {"raison": "compte_inactif", "statut": compte.statut.value})
+        session.close()
+        flash('Opération impossible : le compte n\'est pas actif.', 'danger')
+        return redirect(url_for('accounts.view', id=compte_id))
 
     if request.method == 'POST':
         montant_str = request.form['montant']
@@ -112,12 +139,20 @@ def retrait(compte_id):
             # Vérifications des règles métier
             if montant <= 0:
                 error = 'Le montant doit être supérieur à 0.'
+                log_action(g.user.id, "ECHEC_RETRAIT", f"Compte {compte.numero_compte}",
+                           {"raison": "montant_invalide", "montant": montant_str})
             elif montant > Config.RETRAIT_MAXIMUM:
                 error = f'Le retrait maximum autorisé est de {Config.RETRAIT_MAXIMUM} {Config.DEVISE}.'
+                log_action(g.user.id, "ECHEC_RETRAIT", f"Compte {compte.numero_compte}",
+                           {"raison": "limite_depassee", "montant": str(montant), "limite": str(Config.RETRAIT_MAXIMUM)})
             elif not compte.peut_retirer(montant):
                 error = f'Solde insuffisant. Le solde minimum autorisé est de {Config.SOLDE_MINIMUM_COMPTE} {Config.DEVISE}.'
+                log_action(g.user.id, "ECHEC_RETRAIT", f"Compte {compte.numero_compte}",
+                           {"raison": "solde_insuffisant", "montant": str(montant), "solde": str(compte.solde)})
         except:
             error = 'Montant invalide.'
+            log_action(g.user.id, "ECHEC_RETRAIT", f"Compte {compte.numero_compte}",
+                       {"raison": "montant_invalide", "montant": montant_str})
 
         if error is None:
             try:
@@ -130,6 +165,7 @@ def retrait(compte_id):
                 # 3. Créer l'opération
                 operation = Operation(
                     compte_id=compte.id,
+                    utilisateur_id=g.user.id,
                     type_operation=TypeOperation.RETRAIT,
                     montant=montant,
                     solde_avant=solde_avant,
@@ -150,10 +186,16 @@ def retrait(compte_id):
                 
             except Exception as e:
                 session.rollback()
+                log_action(g.user.id, "ECHEC_RETRAIT", f"Compte {compte.numero_compte}",
+                           {"raison": "exception_systeme", "erreur": str(e), "montant": str(montant)})
                 error = f"Erreur lors du retrait : {e}"
 
         if error is not None:
             flash(error, 'danger')
+    else:
+        # GET request - Logger l'accès au formulaire
+        log_action(g.user.id, "ACCES_FORMULAIRE_RETRAIT", f"Compte {compte.numero_compte}",
+                   {"compte_id": compte_id, "numero_compte": compte.numero_compte, "solde_actuel": str(compte.solde)})
     
     # Rendre le template
     result = render_template('operations/retrait.html', compte=compte, config=Config)

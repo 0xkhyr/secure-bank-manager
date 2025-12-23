@@ -1,43 +1,32 @@
 {% extends 'base.html' %}
 
-{% block title %}Connexion - Banque Sécurisée{% endblock %}
+{% block title %}Connexion - SecureBank{% endblock %}
 
 {% block content %}
-<div class="row justify-content-center mt-5">
-    <div class="col-md-6 col-lg-4">
-        <div class="card shadow">
-            <div class="card-body p-4">
-                <h3 class="text-center mb-4">Connexion</h3>
-                <form method="post">
-                    <div class="mb-3">
-                        <label for="username" class="form-label">Nom d'utilisateur</label>
-                        <div class="input-group">
-                            <span class="input-group-text"><i class="bi bi-person"></i></span>
-                            <input type="text" class="form-control" id="username" name="username" required autofocus>
-                        </div>
-                    </div>
-                    <div class="mb-3">
-                        <label for="password" class="form-label">Mot de passe</label>
-                        <div class="input-group">
-                            <span class="input-group-text"><i class="bi bi-lock"></i></span>
-                            <input type="password" class="form-control" id="password" name="password" required>
-                        </div>
-                    </div>
-                    <div class="d-grid gap-2">
-                        <button type="submit" class="btn btn-primary">Se connecter</button>
-                    </div>
-                </form>
-            </div>
-            <div class="card-footer text-center text-muted py-3">
-                <small>Accès réservé au personnel autorisé</small>
-            </div>
+<div style="max-width: 400px; margin: 80px auto;">
+    <div class="card">
+        <div class="card-body" style="padding: 40px;">
+            <h1 style="font-size: 24px; font-weight: 400; margin-bottom: 32px; text-align: center;">Connexion</h1>
+            <form method="post">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="mb-3">
+                    <label for="username" class="form-label">Nom d'utilisateur</label>
+                    <input type="text" class="form-control" id="username" name="username" required autofocus>
+                </div>
+                <div class="mb-3">
+                    <label for="password" class="form-label">Mot de passe</label>
+                    <input type="password" class="form-control" id="password" name="password" required>
+                </div>
+                <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 16px;">Se connecter</button>
+            </form>
         </div>
-        
-        <div class="mt-4 text-center">
-            <p class="text-muted">Comptes de démonstration :</p>
-            <small><code>admin</code> / <code>admin123</code></small><br>
-            <small><code>operateur</code> / <code>operateur123</code></small>
+        <div style="padding: 20px; text-align: center; border-top: 1px solid var(--border); color: var(--text-secondary); font-size: 12px;">
+            Accès réservé au personnel autorisé
         </div>
+    </div>
+    
+    <div style="margin-top: 32px; text-align: center; color: var(--text-secondary); font-size: 14px;">
+        <p>Comptes de démonstration disponibles via les outils de développement. Voir <code>README.md</code> ou <code>scripts/seed_dev_users.py</code> (développement uniquement).</p>
     </div>
 </div>
 {% endblock %}

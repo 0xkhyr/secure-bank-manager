@@ -1,84 +1,53 @@
 {% extends "base.html" %}
 
-{% block title %}Vérification d'Intégrité{% endblock %}
+{% block title %}Vérification Intégrité - SecureBank{% endblock %}
 
 {% block content %}
-<div class="container mt-4">
-    <div class="row">
-        <div class="col-md-12">
-            <div class="d-flex justify-content-between align-items-center mb-4">
-                <h2>Vérification d'Intégrité du Journal d'Audit</h2>
-                <a href="{{ url_for('audit.index') }}" class="btn btn-secondary">
-                    <i class="fas fa-arrow-left"></i> Retour au Journal
-                </a>
-            </div>
-
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="mb-0">
-                        {% if valide %}
-                            <i class="fas fa-check-circle text-success"></i> Intégrité Validée
-                        {% else %}
-                            <i class="fas fa-exclamation-triangle text-danger"></i> Intégrité Compromise
-                        {% endif %}
-                    </h5>
+<div style="max-width: 1200px; margin: 0 auto;">
+    <div style="max-width: 800px; margin: 0 auto;">
+        <h1 style="font-size: 24px; font-weight: 400; margin-bottom: 24px;">Vérification de l'Intégrité du Journal d'Audit</h1>
+    <div class="card">
+        <div class="card-body">
+            {% if result %}
+                {% if result.valid %}
+                <div class="alert alert-success">
+                    <h3 style="font-size: 18px; font-weight: 500; margin-bottom: 16px;">✓ Intégrité Vérifiée</h3>
+                    <p style="margin-bottom: 8px;"><strong>Total d'entrées vérifiées :</strong> {{ result.total }}</p>
+                    <p style="margin: 0;"><strong>Toutes les signatures sont valides.</strong></p>
                 </div>
-                <div class="card-body">
-                    {% if valide %}
-                        <div class="alert alert-success">
-                            <h6 class="alert-heading">✓ Journal Intègre</h6>
-                            <p class="mb-0">Toutes les entrées du journal d'audit sont intactes et n'ont pas été falsifiées.</p>
-                        </div>
-
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="card border-success">
-                                    <div class="card-body text-center">
-                                        <i class="fas fa-shield-alt fa-3x text-success mb-3"></i>
-                                        <h5>Chaîne de Hash</h5>
-                                        <p class="text-muted">Toutes les chaînes de hash sont valides</p>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="card border-success">
-                                    <div class="card-body text-center">
-                                        <i class="fas fa-lock fa-3x text-success mb-3"></i>
-                                        <h5>Signature HMAC</h5>
-                                        <p class="text-muted">Toutes les signatures sont authentiques</p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    {% else %}
-                        <div class="alert alert-danger">
-                            <h6 class="alert-heading">✗ Problème d'Intégrité Détecté</h6>
-                            <p class="mb-0">{{ erreurs|length }} erreur(s) trouvée(s) dans le journal d'audit.</p>
-                        </div>
-
-                        <div class="card border-danger">
-                            <div class="card-header bg-danger text-white">
-                                <h6 class="mb-0">Détails des Erreurs</h6>
-                            </div>
-                            <div class="card-body">
-                                <ul class="list-group list-group-flush">
-                                    {% for erreur in erreurs %}
-                                    <li class="list-group-item list-group-item-danger">
-                                        <i class="fas fa-exclamation-circle text-danger me-2"></i>
-                                        {{ erreur }}
-                                    </li>
-                                    {% endfor %}
-                                </ul>
-                            </div>
-                        </div>
-
-                        <div class="alert alert-warning mt-3">
-                            <i class="fas fa-exclamation-triangle"></i>
-                            <strong>Action Requise :</strong> Le journal d'audit a été compromis. 
-                            Contactez immédiatement l'administrateur système et conservez une copie de sauvegarde.
-                        </div>
+                {% else %}
+                <div class="alert alert-danger">
+                    <h3 style="font-size: 18px; font-weight: 500; margin-bottom: 16px;">⚠ Problème d'Intégrité Détecté</h3>
+                    <p style="margin-bottom: 8px;"><strong>Total d'entrées :</strong> {{ result.total }}</p>
+                    <p style="margin-bottom: 8px;"><strong>Entrées invalides :</strong> {{ result.invalid }}</p>
+                    
+                    {% if result.invalid_entries %}
+                    <h4 style="font-size: 16px; font-weight: 500; margin-top: 24px; margin-bottom: 12px;">Entrées corrompues :</h4>
+                    <ul style="margin: 0; padding-left: 24px;">
+                        {% for entry_id in result.invalid_entries %}
+                        <li><a href="{{ url_for('audit.view', id=entry_id) }}" style="color: var(--danger);">Entrée #{{ entry_id }}</a></li>
+                        {% endfor %}
+                    </ul>
                     {% endif %}
                 </div>
+                {% endif %}
+            {% else %}
+            <div style="text-align: center; padding: 48px;">
+                <p style="color: var(--text-secondary); margin-bottom: 24px;">Cliquez sur le bouton ci-dessous pour lancer la vérification.</p>
+                <form method="post">
+                    <button type="submit" class="btn btn-primary">Lancer la Vérification</button>
+                </form>
+            </div>
+            {% endif %}
+
+            {% if result %}
+            <div style="margin-top: 32px; display: flex; justify-content: space-between;">
+                <a href="{{ url_for('audit.index') }}" class="btn">Retour au Journal</a>
+                <form method="post">
+                    <button type="submit" class="btn">Revérifier</button>
+                </form>
+            </div>
+            {% endif %}
             </div>
         </div>
     </div>

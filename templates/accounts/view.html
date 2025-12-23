@@ -1,112 +1,177 @@
 {% extends 'base.html' %}
 
-{% block title %}Compte {{ compte.numero_compte }} - Banque Sécurisée{% endblock %}
+{% block title %}Compte {{ compte.numero_compte }} - SecureBank{% endblock %}
 
 {% block content %}
-<div class="mb-3">
-    <a href="{{ url_for('clients.view', id=compte.client_id) }}" class="text-decoration-none">
-        <i class="bi bi-arrow-left"></i> Retour au client
-    </a>
+<div style="max-width: 1200px; margin: 0 auto;">
+    <div style="margin-bottom: 16px;">
+        <a href="{{ url_for('clients.view', id=client_id) }}" style="color: var(--text-secondary); text-decoration: none; font-size: 14px;">← Retour au client</a>
+    </div>
+
+    <h1 style="font-size: 24px; font-weight: 400; margin-bottom: 24px;">Compte {{ compte.numero_compte }}</h1>
+
+<!-- Account Summary -->
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 32px;">
+    <div class="stat-card">
+        <div class="stat-label">Solde Actuel</div>
+        <div class="stat-value" style="font-size: 28px;">{{ "%.3f"|format(compte.solde) }} TND</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Statut</div>
+        <div style="margin-top: 8px;">
+            {% if compte.statut.value == 'actif' %}
+                <span class="badge badge-success">Actif</span>
+            {% else %}
+                <span class="badge bg-secondary">{{ compte.statut.value }}</span>
+            {% endif %}
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Date d'Ouverture</div>
+        <div style="font-size: 16px; margin-top: 8px;">{{ (compte.date_ouverture|to_local_time).strftime('%d/%m/%Y') }}</div>
+    </div>
 </div>
 
-<div class="row">
-    <!-- Détails du Compte -->
-    <div class="col-md-4 mb-4">
-        <div class="card shadow h-100 border-primary">
-            <div class="card-header bg-primary text-white">
-                <h5 class="mb-0"><i class="bi bi-wallet2"></i> Détails du Compte</h5>
-            </div>
-            <div class="card-body text-center">
-                <h6 class="text-muted mb-2">Solde Actuel</h6>
-                <h2 class="display-4 fw-bold text-primary mb-4">{{ "%.3f"|format(compte.solde) }} <small class="fs-6 text-muted">TND</small></h2>
-                
-                <ul class="list-group list-group-flush text-start">
-                    <li class="list-group-item d-flex justify-content-between">
-                        <span class="text-muted">Numéro</span>
-                        <span class="font-monospace">{{ compte.numero_compte }}</span>
-                    </li>
-                    <li class="list-group-item d-flex justify-content-between">
-                        <span class="text-muted">Statut</span>
-                        {% if compte.statut.value == 'actif' %}
-                            <span class="badge bg-success">Actif</span>
-                        {% else %}
-                            <span class="badge bg-secondary">{{ compte.statut.value }}</span>
-                        {% endif %}
-                    </li>
-                    <li class="list-group-item d-flex justify-content-between">
-                        <span class="text-muted">Ouverture</span>
-                        <span>{{ compte.date_ouverture.strftime('%d/%m/%Y') }}</span>
-                    </li>
-                </ul>
-
-                <div class="d-grid gap-2 mt-4">
-                    <a href="{{ url_for('operations.depot', compte_id=compte.id) }}" class="btn btn-success">
-                        <i class="bi bi-arrow-down-circle"></i> Dépôt
-                    </a>
-                    <a href="{{ url_for('operations.retrait', compte_id=compte.id) }}" class="btn btn-warning">
-                        <i class="bi bi-arrow-up-circle"></i> Retrait
-                    </a>
-                </div>
-                
-                {% if compte.solde == 0 and compte.statut.value == 'actif' %}
-                <hr>
-                <form action="{{ url_for('accounts.close', id=compte.id) }}" method="post" onsubmit="return confirm('Êtes-vous sûr de vouloir clôturer ce compte ?');">
-                    <button type="submit" class="btn btn-outline-danger w-100">
-                        <i class="bi bi-x-circle"></i> Clôturer le Compte
-                    </button>
-                </form>
-                {% endif %}
-            </div>
-        </div>
+<!-- Actions -->
+<div class="actions">
+    <div class="actions-title">Actions</div>
+    {% if compte.statut.value == 'actif' %}
+    <div class="action-grid">
+        <a href="{{ url_for('operations.depot', compte_id=compte.id) }}" class="btn btn-primary" style="background: #1e8e3e; border-color: #1e8e3e;">Effectuer un Dépôt</a>
+        <a href="{{ url_for('operations.retrait', compte_id=compte.id) }}" class="btn" style="border-color: #f9ab00; color: #b06000;">Effectuer un Retrait</a>
+        <button type="button" class="btn" style="border-color: var(--danger); color: var(--danger);" onclick="showModal('close')">Clôturer le Compte</button>
     </div>
-
-    <!-- Historique des Opérations -->
-    <div class="col-md-8">
-        <div class="card shadow h-100">
-            <div class="card-header bg-light">
-                <h5 class="mb-0"><i class="bi bi-clock-history"></i> Historique des Opérations</h5>
-            </div>
-            <div class="card-body p-0">
-                <div class="table-responsive">
-                    <table class="table table-striped mb-0">
-                        <thead>
-                            <tr>
-                                <th>Date</th>
-                                <th>Type</th>
-                                <th>Description</th>
-                                <th class="text-end">Montant</th>
-                                <th class="text-end">Solde</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for op in operations %}
-                            <tr>
-                                <td>{{ op.date_operation.strftime('%d/%m/%Y %H:%M') }}</td>
-                                <td>
-                                    {% if op.type_operation.value == 'depot' %}
-                                        <span class="badge bg-success"><i class="bi bi-arrow-down"></i> Dépôt</span>
-                                    {% else %}
-                                        <span class="badge bg-warning text-dark"><i class="bi bi-arrow-up"></i> Retrait</span>
-                                    {% endif %}
-                                </td>
-                                <td>{{ op.description or '-' }}</td>
-                                <td class="text-end fw-bold {{ 'text-success' if op.type_operation.value == 'depot' else 'text-danger' }}">
-                                    {{ '+' if op.type_operation.value == 'depot' else '-' }}{{ "%.3f"|format(op.montant) }}
-                                </td>
-                                <td class="text-end text-muted">{{ "%.3f"|format(op.solde_apres) }}</td>
-                            </tr>
-                            {% else %}
-                            <tr>
-                                <td colspan="5" class="text-center py-4 text-muted">
-                                    Aucune opération enregistrée.
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+    
+    {% elif compte.statut.value == 'ferme' %}
+    <div style="background: #fef7e0; border: 1px solid #fbbc04; border-radius: 4px; padding: 24px; text-align: center;">
+        <div style="font-size: 16px; color: #b06000; margin-bottom: 16px; font-weight: 500;">
+            ⚠ Ce compte est fermé
         </div>
+        <div style="font-size: 13px; color: var(--text-secondary); margin-bottom: 20px;">
+            Aucune opération n'est possible sur ce compte. Vous pouvez le réouvrir pour autoriser les transactions.
+        </div>
+        <button type="button" class="btn btn-primary" style="background: #1e8e3e; border-color: #1e8e3e;" onclick="showModal('reopen')">Réouvrir le Compte</button>
     </div>
+    
+    {% else %}
+    <div style="padding: 16px; background: #fef7e0; border: 1px solid #fbbc04; border-radius: 4px; color: var(--text-secondary); text-align: center;">
+        ⚠ Aucune opération disponible - Le compte est {{ compte.statut.value }}
+    </div>
+    {% endif %}
+</div>
+
+<!-- Modal Component -->
+<div id="accountModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;" onclick="hideModal()">
+    <div style="background: var(--surface); border-radius: 8px; padding: 24px; max-width: 500px; width: 90%;" onclick="event.stopPropagation()">
+        <h3 id="modalTitle" style="font-size: 18px; font-weight: 500; margin-bottom: 16px;"></h3>
+        <form id="modalForm" method="post" action="">
+            <div style="margin-bottom: 20px;">
+                <label for="raison" style="display: block; font-size: 14px; font-weight: 500; margin-bottom: 8px;">Raison *</label>
+                <select id="raison" name="raison" required style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 4px; font-size: 14px;">
+                </select>
+            </div>
+            <div style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 24px;">
+                <button type="button" class="btn" onclick="hideModal()">Annuler</button>
+                <button id="modalSubmit" type="submit" class="btn btn-primary"></button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+const modalConfig = {
+    close: {
+        title: 'Clôturer le compte',
+        action: '{{ url_for("accounts.close", id=compte.id) }}',
+        submitText: 'Confirmer la clôture',
+        submitStyle: 'background: #d93025; border-color: #d93025; color: white;',
+        reasons: [
+            'Demande client',
+            'Inactivité',
+            'Fraude/Suspicion',
+            'Conformité réglementaire',
+            'Décision administrative',
+            'Décès du titulaire'
+        ]
+    },
+    reopen: {
+        title: 'Réouvrir le compte',
+        action: '{{ url_for("accounts.reopen", id=compte.id) }}',
+        submitText: 'Confirmer la réouverture',
+        submitStyle: 'background: #1e8e3e; border-color: #1e8e3e; color: white;',
+        reasons: [
+            'Demande client',
+            'Correction d\'erreur',
+            'Révision administrative',
+            'Résolution de conformité',
+            'Réactivation après inactivité'
+        ]
+    }
+};
+
+function showModal(type) {
+    const config = modalConfig[type];
+    const modal = document.getElementById('accountModal');
+    const form = document.getElementById('modalForm');
+    const select = document.getElementById('raison');
+    const submit = document.getElementById('modalSubmit');
+    
+    document.getElementById('modalTitle').textContent = config.title;
+    form.action = config.action;
+    submit.textContent = config.submitText;
+    submit.style.cssText = config.submitStyle;
+    
+    select.innerHTML = config.reasons.map(r => `<option value="${r}">${r}</option>`).join('');
+    
+    modal.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+}
+
+function hideModal() {
+    document.getElementById('accountModal').style.display = 'none';
+    document.body.style.overflow = 'auto';
+}
+</script>
+
+<!-- Operations History -->
+<div class="table-container">
+    <div class="table-header">
+        <div class="table-title">Historique des Opérations</div>
+    </div>
+    <table>
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Type</th>
+                <th>Montant</th>
+                <th>Solde Après</th>
+                <th>Description</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for op in operations %}
+            <tr>
+                <td>{{ (op.date_operation|to_local_time).strftime('%d/%m/%Y %H:%M') }}</td>
+                <td>
+                    {% if op.type_operation.value == 'depot' %}
+                        <span class="badge badge-success">Dépôt</span>
+                    {% else %}
+                        <span class="badge badge-warning">Retrait</span>
+                    {% endif %}
+                </td>
+                <td style="font-weight: 500;">{{ "%.3f"|format(op.montant) }} TND</td>
+                <td>{{ "%.3f"|format(op.solde_apres) }} TND</td>
+                <td style="color: var(--text-secondary); font-size: 13px;">{{ op.description or '-' }}</td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="5" style="text-align: center; color: var(--text-secondary); padding: 32px;">
+                    Aucune opération enregistrée sur ce compte.
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
 </div>
 {% endblock %}

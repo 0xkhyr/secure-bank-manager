@@ -17,6 +17,9 @@ from src.models import Utilisateur, RoleUtilisateur
 from src.config import Config
 from datetime import datetime, timedelta
 
+# Generic message used to avoid username enumeration
+GENERIC_LOGIN_ERROR = "Nom d'utilisateur ou mot de passe invalide."
+
 # Création du Blueprint pour l'authentification
 auth_bp = Blueprint('auth', __name__, url_prefix='/auth')
 
@@ -36,14 +39,14 @@ def login_required(view):
 
 def admin_required(view):
     """
-    Décorateur pour restreindre l'accès aux administrateurs uniquement.
+    Décorateur pour restreindre l'accès aux administrateurs et superadmins uniquement.
     """
     @functools.wraps(view)
     def wrapped_view(**kwargs):
         if g.user is None:
             return redirect(url_for('auth.login'))
         
-        if g.user.role != RoleUtilisateur.ADMIN:
+        if g.user.role not in [RoleUtilisateur.ADMIN, RoleUtilisateur.SUPERADMIN]:
             flash("Accès refusé : Vous devez être administrateur.", "danger")
             return redirect(url_for('home'))
             
@@ -53,15 +56,15 @@ def admin_required(view):
 
 def operateur_required(view):
     """
-    Décorateur pour restreindre l'accès aux opérateurs (ou admins).
+    Décorateur pour restreindre l'accès aux opérateurs (ou admins/superadmins).
     """
     @functools.wraps(view)
     def wrapped_view(**kwargs):
         if g.user is None:
             return redirect(url_for('auth.login'))
         
-        # Les admins ont aussi accès aux fonctions opérateurs
-        if g.user.role not in [RoleUtilisateur.OPERATEUR, RoleUtilisateur.ADMIN]:
+        # Les admins et superadmins ont aussi accès aux fonctions opérateurs
+        if g.user.role not in [RoleUtilisateur.OPERATEUR, RoleUtilisateur.ADMIN, RoleUtilisateur.SUPERADMIN]:
             flash("Accès refusé.", "danger")
             return redirect(url_for('home'))
             
@@ -72,6 +75,7 @@ def operateur_required(view):
 
 # Mapping de permissions basique (role -> set de permissions)
 PERMISSION_MAP = {
+    RoleUtilisateur.SUPERADMIN.name: {'*'},  # SuperAdmin a toutes les permissions
     RoleUtilisateur.ADMIN.name: {'*'},
     RoleUtilisateur.OPERATEUR.name: {
         'clients.view', 'clients.create', 'clients.update',
@@ -138,6 +142,14 @@ def load_logged_in_user():
         last_activity = session.get('last_activity')
         if last_activity:
             if datetime.utcnow() - datetime.fromisoformat(last_activity) > timedelta(seconds=Config.SESSION_TIMEOUT):
+                # Logger l'expiration avant de clear
+                try:
+                    from src.audit_logger import log_action
+                    duree = (datetime.utcnow() - datetime.fromisoformat(last_activity)).total_seconds()
+                    log_action(user_id, "SESSION_EXPIREE", "Système",
+                               {"duree_inactivite_secondes": int(duree), "timeout": Config.SESSION_TIMEOUT})
+                except Exception:
+                    pass
                 session.clear()
                 g.user = None
                 return
@@ -167,44 +179,113 @@ def login():
         user = db_session.query(Utilisateur).filter_by(nom_utilisateur=username).first()
         
         if user is None:
-            error = 'Nom d\'utilisateur incorrect.'
+            # Avoid revealing whether the username exists
+            error = GENERIC_LOGIN_ERROR
+            # Audit - tentative de connexion échouée (utilisateur inexistant)
+            from src.audit_logger import log_action
+            log_action(None, "ECHEC_CONNEXION", "Système", 
+                      {"nom_utilisateur": username, "raison": "utilisateur_inexistant", "user_id": None})
         else:
+            user_id_local = user.id
+            # Vérifier si le compte est actif
+            if not user.is_active:
+                # Do not reveal account state to the client
+                error = GENERIC_LOGIN_ERROR
+                # Audit - tentative de connexion sur compte inactif
+                from src.audit_logger import log_action
+                log_action(user_id_local, "ECHEC_CONNEXION", "Système",
+                          {"nom_utilisateur": username, "user_id": user_id_local, "raison": "compte_inactif"})
             # Vérifier si le compte est verrouillé
-            if user.est_verrouille():
-                remaining = user.verrouille_jusqu_a - datetime.utcnow()
-                minutes = int(remaining.total_seconds() // 60) + 1
-                error = f"Compte verrouillé. Réessayer dans {minutes} minute(s)."
+            elif user.est_verrouille():
+                # Do not reveal that the account is locked to the client; use a generic message
+                error = GENERIC_LOGIN_ERROR
+                # Audit - tentative sur compte verrouillé
+                from src.audit_logger import log_action
+                log_action(user_id_local, "ECHEC_CONNEXION", "Système",
+                          {"nom_utilisateur": username, "user_id": user_id_local, "raison": "compte_verrouille"})
             elif not bcrypt.verify(password, user.mot_de_passe_hash):
-                error = 'Mot de passe incorrect.'
+                # Use generic message so we don't reveal whether username or password was incorrect
+                error = GENERIC_LOGIN_ERROR
                 # Gestion des tentatives échouées et verrouillage
                 user.tentatives_connexion = (user.tentatives_connexion or 0) + 1
                 # Si on atteint le maximum, verrouiller le compte
                 if user.tentatives_connexion >= Config.MAX_LOGIN_ATTEMPTS:
-                    user.verrouille_jusqu_a = datetime.utcnow() + timedelta(minutes=Config.LOCKOUT_MINUTES)
+                    from src.audit_logger import log_action
+                    now_utc = datetime.utcnow()
+                    user.verrouille_jusqu_a = now_utc + timedelta(minutes=Config.LOCKOUT_MINUTES)
+                    user.verrouille_raison = 'trop_de_tentatives'
+                    user.verrouille_le = now_utc
+                    user.verrouille_par_id = None
                     # Optionnel : reset counter after locking
                     user.tentatives_connexion = 0
+                    db_session.commit()
+
+                    # Audit - verrouillage automatique
+                    try:
+                        log_action(user_id_local, "VERROUILLAGE_AUTO_UTILISATEUR", "Système",
+                                  {"nom_utilisateur": username, "user_id": user_id_local, "raison": "trop_de_tentatives", "duree_minutes": Config.LOCKOUT_MINUTES, "jusqu_a": user.verrouille_jusqu_a.isoformat()})
+                    except Exception:
+                        pass
+
+                    # Keep a generic error message for the user (do not reveal lock details)
+                    error = GENERIC_LOGIN_ERROR
+                else:
+                    db_session.commit()
+                    # Audit - mauvais mot de passe
+                    from src.audit_logger import log_action
+                    log_action(user_id_local, "ECHEC_CONNEXION", "Système",
+                              {"nom_utilisateur": username, "user_id": user_id_local, "raison": "mot_de_passe_incorrect"})
+            
+            # Vérifier si le compte était verrouillé et se déverrouille automatiquement
+            was_locked = user.verrouille_jusqu_a is not None
+
+            # Si une erreur a été détectée plus haut, ne pas procéder à la connexion
+            if error:
+                db_session.close()
+                flash(error, 'danger')
+            else:
+                # Mise à jour des infos de connexion
+                user.derniere_connexion = datetime.utcnow()
+                user.tentatives_connexion = 0
+                user.verrouille_jusqu_a = None
                 db_session.commit()
-        
-        if error is None:
-            # Connexion réussie
-            session.clear()
-            session['user_id'] = user.id
-            session['last_activity'] = datetime.utcnow().isoformat()
-            
-            # Mise à jour des infos de connexion
-            user.derniere_connexion = datetime.utcnow()
-            user.tentatives_connexion = 0
-            user.verrouille_jusqu_a = None
-            db_session.commit()
-            db_session.close()
-            
-            flash('Connexion réussie !', 'success')
-            return redirect(url_for('home'))
-        
+
+                # Audit - déverrouillage automatique si applicable
+                if was_locked:
+                    from src.audit_logger import log_action
+                    log_action(user_id_local, "DEVERROUILLAGE_AUTO", "Système",
+                              {"nom_utilisateur": username, "user_id": user_id_local, "raison": "expiration_lockout"})
+
+                # Audit - connexion réussie
+                from src.audit_logger import log_action
+                log_action(user_id_local, "CONNEXION", "Système", {"nom_utilisateur": username, "user_id": user_id_local})
+
+                db_session.close()
+
+                # Set session to mark user as logged in
+                session['user_id'] = user_id_local
+                session['last_activity'] = datetime.utcnow().isoformat()
+                flash('Connexion réussie !', 'success')
+                return redirect(url_for('home'))
+
         db_session.close()
-        flash(error, 'danger')
+        if error:
+            # Avoid flashing the exact same message multiple times in the session
+            existing = session.get('_flashes') or []
+            if not any(c == 'danger' and m == error for c, m in existing):
+                flash(error, 'danger')
 
     return render_template('auth/login.html')
+
+# Apply rate limit to the login endpoint at import time to avoid decorator ordering/circular import issues
+try:
+    from src.app import limiter
+    if limiter:
+        # Wrap the login view with the configured login rate limit
+        login = limiter.limit(getattr(Config, 'LOGIN_RATE_LIMIT', '10 per minute'))(login)
+except Exception:
+    # If Flask-Limiter is not available or import fails, keep behavior unchanged
+    pass
 
 @auth_bp.route('/logout')
 def logout():
@@ -212,6 +293,11 @@ def logout():
     Route de déconnexion.
     Efface la session et redirige vers la connexion.
     """
+    # Audit - déconnexion
+    if g.user:
+        from src.audit_logger import log_action
+        log_action(g.user.id, "DECONNEXION", "Système", {"nom_utilisateur": g.user.nom_utilisateur, "user_id": g.user.id})
+    
     session.clear()
     flash('Vous avez été déconnecté.', 'info')
     return redirect(url_for('auth.login'))

@@ -29,3 +29,12 @@ data/*.sqlite3
 
 # Docker
 .dockerignore
+
+# ignore design previews
+# Supports both singular and plural directories and the static path
+design-previews/*
+design-preview/
+static/design-preview/
+
+# ignore TODO.md files
+TODO.md

@@ -22,3 +22,9 @@ python-dateutil==2.8.2
 
 # Tests
 pytest==9.0.1
+
+# CSRF protection
+Flask-WTF==1.1.1
+
+# Rate limiting
+Flask-Limiter==2.9.0

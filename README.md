@@ -71,12 +71,13 @@ secure-bank-manager/
 
 ## 👥 Utilisateurs par Défaut
 
-Après le premier lancement, vous pouvez vous connecter avec :
+En développement, vous pouvez créer des comptes de démonstration via le script suivant (local uniquement) :
 
-- **Admin** : `admin` / `admin123`
-- **Opérateur** : `operateur` / `operateur123`
+```
+python scripts/seed_dev_users.py --force
+```
 
-⚠️ **Important** : Changez ces mots de passe en production !
+⚠️ **Important** : changez les mots de passe avant toute utilisation hors développement !
 
 ## 🔧 Fonctionnalités
 
@@ -114,6 +115,7 @@ L'application utilise un système de configuration centralisé via le fichier `.
 - `HMAC_SECRET_KEY` : Clé HMAC pour signer les entrées du journal d'audit
 - `MAX_LOGIN_ATTEMPTS` : Nombre maximum de tentatives de connexion (défaut: 3)
 - `SESSION_TIMEOUT` : Durée de vie de la session en secondes (défaut: 3600)
+- `LOGIN_RATE_LIMIT` : Limite par-IP pour le endpoint `/auth/login` (format Flask-Limiter, ex: `10 per minute`). Implemented via `Flask-Limiter` (add dependency in `requirements.txt`).
 
 **Base de données** :
 - `DATABASE_PATH` : Chemin vers le fichier SQLite (défaut: `data/banque.db`)

@@ -16,6 +16,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import sessionmaker, scoped_session
 from passlib.hash import bcrypt
+import secrets
 
 # Importer la configuration centralisée
 from src.config import Config
@@ -93,9 +94,7 @@ def creer_utilisateurs_defaut():
     """
     Crée les utilisateurs par défaut si la table utilisateurs est vide.
     
-    Utilisateurs créés :
-    - admin / admin123 (rôle ADMIN)
-    - operateur / operateur123 (rôle OPERATEUR)
+    Utilisateurs créés : superadmin, admin, operateur (mot de passe par défaut disponibles via les scripts de développement).
     
     Les mots de passe sont hashés avec bcrypt pour la sécurité.
     
@@ -107,27 +106,36 @@ def creer_utilisateurs_defaut():
         nombre_utilisateurs = session.query(Utilisateur).count()
         
         if nombre_utilisateurs == 0:
-            # Créer l'administrateur
+            # Créer le super administrateur / admin / operateur
+            # Les mots de passe sont fournis via variables d'environnement pour éviter de stocker des secrets en clair dans le code.
+            # Si elles ne sont pas définies, des mots de passe aléatoires sont générés.
+            superadmin_pw = os.getenv('DEV_SUPERADMIN_PW') or secrets.token_urlsafe(12)
+            admin_pw = os.getenv('DEV_ADMIN_PW') or secrets.token_urlsafe(12)
+            operateur_pw = os.getenv('DEV_OPER_PW') or secrets.token_urlsafe(12)
+
+            superadmin = Utilisateur(
+                nom_utilisateur='superadmin',
+                mot_de_passe_hash=bcrypt.hash(superadmin_pw),
+                role=RoleUtilisateur.SUPERADMIN
+            )
+            session.add(superadmin)
+
             admin = Utilisateur(
                 nom_utilisateur='admin',
-                mot_de_passe_hash=bcrypt.hash('admin123'),
+                mot_de_passe_hash=bcrypt.hash(admin_pw),
                 role=RoleUtilisateur.ADMIN
             )
             session.add(admin)
-            
-            # Créer l'opérateur
+
             operateur = Utilisateur(
                 nom_utilisateur='operateur',
-                mot_de_passe_hash=bcrypt.hash('operateur123'),
+                mot_de_passe_hash=bcrypt.hash(operateur_pw),
                 role=RoleUtilisateur.OPERATEUR
             )
             session.add(operateur)
-            
+
             session.commit()
-            print("✓ Utilisateurs par défaut créés :")
-            print("  - admin / admin123 (ADMIN)")
-            print("  - operateur / operateur123 (OPERATEUR)")
-            print("  ⚠️  Changez ces mots de passe en production !")
+            print("✓ Utilisateurs par défaut créés (changez leurs mots de passe en production).")
         else:
             print(f"✓ Base de données déjà initialisée ({nombre_utilisateurs} utilisateurs)")
             

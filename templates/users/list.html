@@ -1,0 +1,89 @@
+{% extends 'base.html' %}
+
+{% block title %}Gestion Utilisateurs - SecureBank{% endblock %}
+
+{% block content %}
+<div style="max-width: 1200px; margin: 0 auto;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+        <h1 style="font-size: 24px; font-weight: 400;">Gestion des Utilisateurs</h1>
+        <a href="{{ url_for('users.create') }}" class="btn btn-primary">Nouvel utilisateur</a>
+    </div>
+
+    <div class="table-container">
+        <div class="table-header">
+            <div class="table-title">Utilisateurs ({{ users|length }} total)</div>
+        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Nom d'utilisateur</th>
+                    <th>Rôle</th>
+                    <th>Statut</th>
+                    <th>Verrouillage</th>
+                    <th>Date création</th>
+                    <th>Dernière connexion</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for user in users %}
+                <tr>
+                    <td>{{ user.id }}</td>
+                    <td><strong>{{ user.nom_utilisateur }}</strong></td>
+                    <td>
+                        {% if user.role.value == 'superadmin' %}
+                            <span class="badge" style="background: #dc2626; color: white;">SUPERADMIN</span>
+                        {% elif user.role.value == 'admin' %}
+                            <span class="badge" style="background: #f59e0b; color: white;">ADMIN</span>
+                        {% else %}
+                            <span class="badge" style="background: #3b82f6; color: white;">OPÉRATEUR</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if user.is_active %}
+                            <span class="badge" style="background: #10b981; color: white;">Actif</span>
+                        {% else %}
+                            <span class="badge" style="background: #6b7280; color: white;">Inactif</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if user.verrouille_jusqu_a and user.verrouille_jusqu_a > now() %}
+                            {% if g.user.role.value in ['admin', 'superadmin'] %}
+                                {% set unlock_local = (user.verrouille_jusqu_a|to_local_time) %}
+                                {% set reason = user.verrouille_raison or '' %}
+                                {% set reason_trunc = (reason[:150] ~ '...') if reason|length > 150 else reason %}
+                                <span class="badge" style="background: #dc2626; color: white;" title="Déverrouillage prévu: {{ unlock_local.strftime('%d/%m/%Y %H:%M') }}{% if reason %} — Raison: {{ reason_trunc }}{% endif %}">
+                                    Verrouillé
+                                </span>
+                            {% else %}
+                                <span class="badge" style="background: #dc2626; color: white;">Verrouillé</span>
+                            {% endif %}
+                        {% else %}
+                            <span class="badge" style="background: #10b981; color: white;">Déverrouillé</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ (user.date_creation|to_local_time).strftime('%d/%m/%Y') if user.date_creation else '-' }}</td>
+                    <td>
+                        {% if user.derniere_connexion %}
+                            {{ (user.derniere_connexion|to_local_time).strftime('%d/%m/%Y %H:%M') }}
+                        {% else %}
+                            <em style="color: var(--text-secondary);">Jamais</em>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <a href="{{ url_for('users.view', id=user.id) }}" class="btn" style="padding: 6px 16px; font-size: 13px;">Détails</a>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="7" style="text-align: center; color: var(--text-secondary); padding: 32px;">
+                        Aucun utilisateur.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,220 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ user.nom_utilisateur }} - SecureBank{% endblock %}
+
+{% block content %}
+<div style="max-width: 1000px; margin: 0 auto;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+        <h1 style="font-size: 24px; font-weight: 400;">Utilisateur: {{ user.nom_utilisateur }}</h1>
+        <div style="display: flex; gap: 8px;">
+            <a href="{{ url_for('users.edit', id=user.id) }}" class="btn btn-primary">Modifier</a>
+            <a href="{{ url_for('users.index') }}" class="btn">Retour à la liste</a>
+        </div>
+    </div>
+
+    <div style="display: grid; gap: 24px;">
+        <!-- Informations -->
+        <div class="card">
+            <div class="card-header">
+                <div class="card-title">Informations</div>
+            </div>
+            <div class="card-body">
+                <div style="display: grid; grid-template-columns: 200px 1fr; gap: 16px;">
+                    <div style="font-weight: 500;">ID:</div>
+                    <div>{{ user.id }}</div>
+
+                    <div style="font-weight: 500;">Nom d'utilisateur:</div>
+                    <div>{{ user.nom_utilisateur }}</div>
+
+                    <div style="font-weight: 500;">Rôle:</div>
+                    <div>
+                        {% if user.role.value == 'superadmin' %}
+                            <span class="badge" style="background: #dc2626; color: white;">SUPERADMIN</span>
+                        {% elif user.role.value == 'admin' %}
+                            <span class="badge" style="background: #f59e0b; color: white;">ADMIN</span>
+                        {% else %}
+                            <span class="badge" style="background: #3b82f6; color: white;">OPÉRATEUR</span>
+                        {% endif %}
+                    </div>
+
+                    <div style="font-weight: 500;">Statut:</div>
+                    <div>
+                        {% if user.is_active %}
+                            <span class="badge" style="background: #10b981; color: white;">Actif</span>
+                        {% else %}
+                            <span class="badge" style="background: #6b7280; color: white;">Inactif</span>
+                        {% endif %}
+                    </div>
+
+                    <div style="font-weight: 500;">Date création:</div>
+                    <div>{{ (user.date_creation|to_local_time).strftime('%d/%m/%Y %H:%M:%S') if user.date_creation else '-' }}</div>
+
+                    <div style="font-weight: 500;">Dernière connexion:</div>
+                    <div>
+                        {% if user.derniere_connexion %}
+                            {{ (user.derniere_connexion|to_local_time).strftime('%d/%m/%Y %H:%M:%S') }}
+                        {% else %}
+                            <em style="color: var(--text-secondary);">Jamais</em>
+                        {% endif %}
+                    </div>
+
+                    <div style="font-weight: 500;">Tentatives échouées:</div>
+                    <div>{{ user.tentatives_echouees }}</div>
+
+                    <div style="font-weight: 500;">Verrouillage:</div>
+                    <div>
+                        {% if user.verrouille_jusqu_a and user.verrouille_jusqu_a > now %}
+                            <span class="badge" style="background: #dc2626; color: white;">VERROUILLÉ</span>
+                            <span style="font-size: 12px; color: var(--text-secondary); margin-left: 8px;">
+                                Jusqu'au {{ lock_time_local.strftime('%d/%m/%Y %H:%M:%S') }}
+                            </span>
+                        {% elif user.verrouille_jusqu_a %}
+                            <span class="badge" style="background: #10b981; color: white;">Déverrouillé</span>
+                            <span style="font-size: 11px; color: var(--text-secondary); margin-left: 8px;">
+                                (Expiré le {{ lock_time_local.strftime('%d/%m/%Y %H:%M:%S') }})
+                            </span>
+                        {% else %}
+                            <span class="badge" style="background: #10b981; color: white;">Déverrouillé</span>
+                        {% endif %}
+                    </div>
+
+                    <div style="font-weight: 500;">Actions dans l'audit:</div>
+                    <div>{{ nb_actions }} entrées</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Actions -->
+        {% if g.user.id != user.id %}
+        <div class="card">
+            <div class="card-header">
+                <div class="card-title">Actions</div>
+            </div>
+            <div class="card-body">
+                <!-- Activer/Désactiver -->
+                <div style="margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid var(--border);">
+                    <h3 style="font-size: 16px; font-weight: 500; margin-bottom: 8px;">
+                        {% if user.is_active %}Désactiver{% else %}Activer{% endif %} le compte
+                    </h3>
+                    <div style="background: #f3f4f6; padding: 12px; border-radius: 4px; margin-bottom: 12px;">
+                        <div style="font-size: 13px; font-weight: 500; color: #374151; margin-bottom: 4px;">
+                            📋 Désactivation permanente
+                        </div>
+                        <div style="font-size: 12px; color: #6b7280;">
+                            Utilisez cette action pour une décision administrative permanente :
+                            <ul style="margin: 4px 0 0 20px; padding: 0;">
+                                <li>Employé a quitté l'entreprise</li>
+                                <li>Fermeture définitive du compte</li>
+                                <li>Suspension administrative</li>
+                            </ul>
+                            Le compte restera désactivé jusqu'à réactivation manuelle.
+                        </div>
+                    </div>
+                    <p style="color: var(--text-secondary); margin-bottom: 12px; font-size: 14px;">
+                        {% if user.is_active %}
+                            ⚠️ L'utilisateur ne pourra plus se connecter tant que le compte est désactivé.
+                        {% else %}
+                            ✅ L'utilisateur pourra à nouveau se connecter après réactivation.
+                        {% endif %}
+                    </p>
+                    <form method="post" action="{{ url_for('users.toggle_active', id=user.id) }}">
+                        {% if user.is_active %}
+                            <button type="submit" class="btn" style="background: #f59e0b; color: white;">Désactiver le compte</button>
+                        {% else %}
+                            <button type="submit" class="btn" style="background: #10b981; color: white;">Réactiver le compte</button>
+                        {% endif %}
+                    </form>
+                </div>
+
+                <!-- Verrouiller/Déverrouiller compte -->
+                <div style="margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid var(--border);">
+                    <h3 style="font-size: 16px; font-weight: 500; margin-bottom: 8px;">Verrouillage temporaire</h3>
+                    
+                    <div style="background: #fef3c7; padding: 12px; border-radius: 4px; margin-bottom: 12px;">
+                        <div style="font-size: 13px; font-weight: 500; color: #92400e; margin-bottom: 4px;">
+                            🔒 Verrouillage de sécurité
+                        </div>
+                        <div style="font-size: 12px; color: #78350f;">
+                            Utilisez cette action pour une restriction temporaire :
+                            <ul style="margin: 4px 0 0 20px; padding: 0;">
+                                <li>Enquête sur activité suspecte</li>
+                                <li>Période de réflexion après violation</li>
+                                <li>Mesure disciplinaire temporaire</li>
+                            </ul>
+                            Le compte se déverrouillera automatiquement après la durée choisie.
+                        </div>
+                    </div>
+                    
+                    {% if user.verrouille_jusqu_a and user.verrouille_jusqu_a > now %}
+                        <div style="background: #fee2e2; padding: 12px; border-radius: 4px; margin-bottom: 12px; border-left: 4px solid #dc2626;">
+                            <div style="font-size: 13px; font-weight: 500; color: #991b1b; margin-bottom: 8px;">
+                                🔐 Compte actuellement verrouillé
+                            </div>
+                            <div style="font-size: 12px; color: #7f1d1d; line-height: 1.6;">
+                                <div><strong>Jusqu'au:</strong> {{ lock_time_local.strftime('%d/%m/%Y à %H:%M') }}</div>
+                                {% if user.verrouille_raison %}
+                                <div style="margin-top: 4px;"><strong>Raison:</strong> {{ user.verrouille_raison }}</div>
+                                {% endif %}
+                                {% if locked_by_name %}
+                                <div style="margin-top: 4px;"><strong>Verrouillé par:</strong> {{ locked_by_name }}</div>
+                                {% endif %}
+                                {% if user.verrouille_le %}
+                                <div style="margin-top: 4px;"><strong>Date verrouillage:</strong> {{ user.verrouille_le.strftime('%d/%m/%Y à %H:%M') }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <form method="post" action="{{ url_for('users.unlock_account', id=user.id) }}">
+                            <button type="submit" class="btn" style="background: #10b981; color: white;">
+                                🔓 Déverrouiller maintenant
+                            </button>
+                        </form>
+                    {% else %}
+                        <form method="post" action="{{ url_for('users.lock_account', id=user.id) }}" style="display: flex; gap: 12px; align-items: end; flex-wrap: wrap;">
+                            <div class="form-group" style="margin: 0; min-width: 140px;">
+                                <label for="duration_minutes" style="font-size: 13px; font-weight: 500;">Durée du verrouillage</label>
+                                <select id="duration_minutes" name="duration_minutes" required style="padding: 10px; border: 1px solid var(--border); border-radius: 4px; width: 100%;">
+                                    <option value="60">1 heure</option>
+                                    <option value="360">6 heures</option>
+                                    <option value="1440">24 heures (1 jour)</option>
+                                    <option value="4320">3 jours</option>
+                                    <option value="10080">7 jours (1 semaine)</option>
+                                    <option value="43200">30 jours (1 mois)</option>
+                                </select>
+                            </div>
+                            <div class="form-group" style="flex: 1; margin: 0; min-width: 200px;">
+                                <label for="raison" style="font-size: 13px; font-weight: 500;">Raison du verrouillage</label>
+                                <input type="text" id="raison" name="raison" placeholder="Ex: Enquête activité suspecte" style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 4px;">
+                            </div>
+                            <button type="submit" class="btn" style="background: #dc2626; color: white;">
+                                🔒 Verrouiller temporairement
+                            </button>
+                        </form>
+                    {% endif %}
+                </div>
+
+                <!-- Réinitialiser mot de passe -->
+                <div>
+                    <h3 style="font-size: 16px; font-weight: 500; margin-bottom: 8px;">Réinitialiser le mot de passe</h3>
+                    <div style="background: #eff6ff; padding: 12px; border-radius: 4px; margin-bottom: 12px;">
+                        <div style="font-size: 13px; font-weight: 500; color: #1e40af; margin-bottom: 4px;">
+                            🔑 Réinitialisation sécurisée
+                        </div>
+                        <div style="font-size: 12px; color: #1e3a8a;">
+                            Définir un nouveau mot de passe pour cet utilisateur. L'utilisateur devra utiliser ce nouveau mot de passe lors de sa prochaine connexion.
+                        </div>
+                    </div>
+                    <form method="post" action="{{ url_for('users.reset_password', id=user.id) }}" style="display: flex; gap: 12px; align-items: end; flex-wrap: wrap;">
+                        <div class="form-group" style="flex: 1; margin: 0; min-width: 200px;">
+                            <label for="new_password" style="font-size: 13px; font-weight: 500;">Nouveau mot de passe</label>
+                            <input type="password" id="new_password" name="new_password" required
+                                   placeholder="Au moins 6 caractères" style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 4px;">
+                        </div>
+                        <button type="submit" class="btn btn-primary">Réinitialiser le mot de passe</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

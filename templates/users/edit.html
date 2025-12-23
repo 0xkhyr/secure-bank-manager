@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+
+{% block title %}Modifier {{ user.nom_utilisateur }} - SecureBank{% endblock %}
+
+{% block content %}
+<div style="max-width: 600px; margin: 0 auto;">
+    <h1 style="font-size: 24px; font-weight: 400; margin-bottom: 24px;">Modifier l'utilisateur</h1>
+
+    <div class="card">
+        <form method="post">
+            <div class="form-group">
+                <label for="nom_utilisateur">Nom d'utilisateur</label>
+                <input type="text" id="nom_utilisateur" name="nom_utilisateur" 
+                       value="{{ user.nom_utilisateur }}" required autofocus>
+            </div>
+
+            <div class="form-group">
+                <label for="role">Rôle</label>
+                <select id="role" name="role" required {% if g.user.id == user.id %}disabled{% endif %}>
+                    {% for role in manageable_roles %}
+                        <option value="{{ role.value }}" {% if user.role == role %}selected{% endif %}>
+                            {% if role.value == 'superadmin' %}
+                                SUPERADMIN - Accès total
+                            {% elif role.value == 'admin' %}
+                                ADMIN - Gestion opérateurs
+                            {% else %}
+                                OPÉRATEUR - Opérations bancaires
+                            {% endif %}
+                        </option>
+                    {% endfor %}
+                </select>
+                {% if g.user.id == user.id %}
+                    <small style="color: var(--text-secondary);">Vous ne pouvez pas changer votre propre rôle</small>
+                {% endif %}
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">Enregistrer</button>
+                <a href="{{ url_for('users.view', id=user.id) }}" class="btn">Annuler</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

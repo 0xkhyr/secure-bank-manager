@@ -1,104 +1,87 @@
 {% extends 'base.html' %}
 
-{% block title %}{{ client.nom_complet }} - Banque Sécurisée{% endblock %}
+{% block title %}{{ client.nom_complet }} - SecureBank{% endblock %}
 
 {% block content %}
-<div class="mb-3">
-    <a href="{{ url_for('clients.index') }}" class="text-decoration-none">
-        <i class="bi bi-arrow-left"></i> Retour à la liste
-    </a>
+<div style="margin-bottom: 16px;">
+    <a href="{{ url_for('clients.index') }}" style="color: var(--text-secondary); text-decoration: none; font-size: 14px;">← Retour à la liste</a>
 </div>
 
-<div class="row">
+<h1 style="font-size: 24px; font-weight: 400; margin-bottom: 24px;">{{ client.nom_complet }}</h1>
+
+<div class="client-grid">
     <!-- Informations Client -->
-    <div class="col-md-4 mb-4">
-        <div class="card shadow h-100">
-            <div class="card-header bg-light">
-                <h5 class="mb-0"><i class="bi bi-person-vcard"></i> Informations Client</h5>
+    <div class="card">
+        <div class="card-header">Informations Client</div>
+        <div class="card-body">
+            <div style="margin-bottom: 20px;">
+                <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">CIN</div>
+                <div style="font-weight: 500;">{{ client.cin }}</div>
             </div>
-            <div class="card-body">
-                <h3 class="card-title text-primary mb-3">{{ client.nom_complet }}</h3>
-                
-                <ul class="list-group list-group-flush">
-                    <li class="list-group-item d-flex justify-content-between">
-                        <span class="text-muted">CIN</span>
-                        <strong>{{ client.cin }}</strong>
-                    </li>
-                    <li class="list-group-item d-flex justify-content-between">
-                        <span class="text-muted">Téléphone</span>
-                        <span>{{ client.telephone }}</span>
-                    </li>
-                    <li class="list-group-item d-flex justify-content-between">
-                        <span class="text-muted">Email</span>
-                        <span>{{ client.email or '-' }}</span>
-                    </li>
-                    <li class="list-group-item">
-                        <span class="text-muted d-block mb-1">Adresse</span>
-                        <p class="mb-0 small">{{ client.adresse or '-' }}</p>
-                    </li>
-                    <li class="list-group-item d-flex justify-content-between">
-                        <span class="text-muted">Client depuis</span>
-                        <span>{{ client.date_creation.strftime('%d/%m/%Y') }}</span>
-                    </li>
-                </ul>
+            <div style="margin-bottom: 20px;">
+                <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">Téléphone</div>
+                <div>{{ client.telephone }}</div>
+            </div>
+            <div style="margin-bottom: 20px;">
+                <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">Email</div>
+                <div>{{ client.email or '-' }}</div>
+            </div>
+            <div style="margin-bottom: 20px;">
+                <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">Adresse</div>
+                <div style="font-size: 13px;">{{ client.adresse or '-' }}</div>
+            </div>
+            <div>
+                <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">Client depuis</div>
+                <div>{{ client.date_creation.strftime('%d/%m/%Y') }}</div>
             </div>
         </div>
     </div>
 
-    <!-- Comptes Bancaires -->
-    <div class="col-md-8">
-        <div class="card shadow">
-            <div class="card-header bg-light d-flex justify-content-between align-items-center">
-                <h5 class="mb-0"><i class="bi bi-wallet2"></i> Comptes Bancaires</h5>
-                <a href="{{ url_for('accounts.create', client_id=client.id) }}" class="btn btn-sm btn-primary">
-                    <i class="bi bi-plus-circle"></i> Nouveau Compte
-                </a>
-            </div>
-            <div class="card-body">
-                {% if comptes %}
-                    <div class="table-responsive">
-                        <table class="table table-hover">
-                            <thead>
-                                <tr>
-                                    <th>Numéro</th>
-                                    <th>Solde</th>
-                                    <th>Statut</th>
-                                    <th>Ouverture</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for compte in comptes %}
-                                <tr>
-                                    <td class="font-monospace">{{ compte.numero_compte }}</td>
-                                    <td class="fw-bold text-end">{{ "%.3f"|format(compte.solde) }} TND</td>
-                                    <td>
-                                        {% if compte.statut.value == 'actif' %}
-                                            <span class="badge bg-success">Actif</span>
-                                        {% else %}
-                                            <span class="badge bg-secondary">{{ compte.statut.value }}</span>
-                                        {% endif %}
-                                    </td>
-                                    <td>{{ compte.date_ouverture.strftime('%d/%m/%Y') }}</td>
-                                    <td>
-                                        <a href="{{ url_for('accounts.view', id=compte.id) }}" class="btn btn-sm btn-outline-primary">Gérer</a>
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                {% else %}
-                    <div class="text-center py-5 text-muted">
-                        <i class="bi bi-wallet display-4 d-block mb-3"></i>
-                        <p>Ce client n'a aucun compte bancaire.</p>
-                        <a href="{{ url_for('accounts.create', client_id=client.id) }}" class="btn btn-primary mt-2">
-                            Ouvrir un premier compte
-                        </a>
-                    </div>
-                {% endif %}
-            </div>
-        </div>
+    <div class="table-container">
+    <div class="table-header" style="display: flex; justify-content: space-between; align-items: center;">
+        <div class="table-title">Comptes Bancaires</div>
+        <a href="{{ url_for('accounts.create', client_id=client.id) }}" class="btn btn-primary" style="padding: 6px 16px; font-size: 13px;">Nouveau Compte</a>
     </div>
+    {% if comptes %}
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Numéro</th>
+                            <th style="text-align: right;">Solde</th>
+                            <th>Statut</th>
+                            <th>Ouverture</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for compte in comptes %}
+                        <tr>
+                            <td style="font-family: monospace;">{{ compte.numero_compte }}</td>
+                            <td style="text-align: right; font-weight: 500;">{{ "%.3f"|format(compte.solde) }} TND</td>
+                            <td>
+                                {% if compte.statut.value == 'actif' %}
+                                    <span class="badge badge-success">Actif</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">{{ compte.statut.value }}</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ (compte.date_ouverture|to_local_time).strftime('%d/%m/%Y') }}</td>
+                            <td>
+                                <a href="{{ url_for('accounts.view', id=compte.id) }}" class="btn" style="padding: 6px 16px; font-size: 13px;">Gérer</a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                </div>
+                {% else %}
+                <div style="text-align: center; padding: 48px; color: var(--text-secondary);">
+                    <p style="margin-bottom: 16px;">Ce client n'a aucun compte bancaire.</p>
+                    <a href="{{ url_for('accounts.create', client_id=client.id) }}" class="btn btn-primary">Ouvrir un premier compte</a>
+                </div>
+                {% endif %}
+                </div>
+            </div>
+        
 </div>
 {% endblock %}

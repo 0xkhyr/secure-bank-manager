@@ -23,7 +23,13 @@ def index():
     """Affiche la liste des clients."""
     session = obtenir_session()
     clients = session.query(Client).all()
+    nb_clients = len(clients)
     session.close()
+    
+    # Logger la consultation de la liste
+    log_action(g.user.id, "CONSULTATION_LISTE_CLIENTS", "Clients",
+               {"nb_clients": nb_clients})
+    
     return render_template('clients/list.html', clients=clients)
 
 @clients_bp.route('/nouveau', methods=('GET', 'POST'))
@@ -88,6 +94,11 @@ def view(id):
         
     # Charger les comptes du client
     comptes = session.query(Compte).filter_by(client_id=id).all()
+    nb_comptes = len(comptes)
     session.close()
+    
+    # Logger la consultation du client
+    log_action(g.user.id, "CONSULTATION_CLIENT", f"Client {id}",
+               {"client_id": id, "cin": client.cin, "nb_comptes": nb_comptes})
     
     return render_template('clients/view.html', client=client, comptes=comptes)
