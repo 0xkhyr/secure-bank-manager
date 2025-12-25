@@ -18,9 +18,9 @@
     --text-primary: #202124;
     --text-secondary: #5f6368;
     --border: #dadce0;
-    --shadow: 0 1px 2px 0 rgba(60,64,67,0.3), 0 1px 3px 1px rgba(60,64,67,0.15);
+    --shadow: 0 1px 2px 0 rgba(60, 64, 67, 0.3), 0 1px 3px 1px rgba(60, 64, 67, 0.15);
     --danger: #dc2626;
-} 
+}
 
 /* Body */
 body {
@@ -73,7 +73,8 @@ body {
 }
 
 /* Grouped nav layout */
-.nav-left, .nav-right {
+.nav-left,
+.nav-right {
     display: flex;
     gap: 16px;
     align-items: center;
@@ -106,7 +107,8 @@ body {
 }
 
 /* Avatar circle in header */
-.avatar, .dropdown-avatar {
+.avatar,
+.dropdown-avatar {
     width: 34px;
     height: 34px;
     border-radius: 50%;
@@ -148,6 +150,7 @@ body {
     margin: 0;
     padding: 0;
 }
+
 .profile-dropdown .dropdown-menu li {
     list-style: none;
 }
@@ -177,9 +180,20 @@ body {
     padding: 4px 6px;
 }
 
-.badge.role-super { background: #dc2626; color: white; }
-.badge.role-admin { background: #f59e0b; color: white; }
-.badge.role-operateur { background: #3b82f6; color: white; }
+.badge.role-super {
+    background: #dc2626;
+    color: white;
+}
+
+.badge.role-admin {
+    background: #f59e0b;
+    color: white;
+}
+
+.badge.role-operateur {
+    background: #3b82f6;
+    color: white;
+}
 
 .dropdown-item {
     display: block;
@@ -199,7 +213,8 @@ body {
 }
 
 .dropdown-item.logout:hover {
-    background: #fff5f5; /* light red */
+    background: #fff5f5;
+    /* light red */
     color: var(--danger);
 }
 
@@ -215,7 +230,8 @@ body {
 }
 
 /* Active link styling */
-.nav-links a.active, .profile-toggle.active {
+.nav-links a.active,
+.profile-toggle.active {
     color: var(--text-primary);
     font-weight: 600;
     border-bottom: 2px solid var(--primary);
@@ -238,6 +254,7 @@ body {
         gap: 24px;
         align-items: center;
     }
+
     .mobile-nav {
         display: none;
     }
@@ -438,103 +455,103 @@ body.menu-open {
         grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
         gap: 12px;
     }
-    
+
     .stat-card {
         padding: 16px;
         min-height: 80px;
     }
-    
+
     .stat-label {
         font-size: 12px;
     }
-    
+
     .stat-value {
         font-size: 24px;
     }
-    
+
     /* Actions responsive */
     .actions {
         padding: 16px;
         margin-bottom: 24px;
     }
-    
+
     .actions-title {
         font-size: 14px;
         margin-bottom: 16px;
     }
-    
+
     .action-grid {
         grid-template-columns: 1fr;
         gap: 10px;
     }
-    
+
     /* Table responsive */
     .table-container {
         overflow-x: auto;
     }
-    
+
     .table-header {
         padding: 16px;
     }
-    
+
     .table-title {
         font-size: 14px;
     }
-    
+
     table {
         min-width: 600px;
     }
-    
+
     th {
         padding: 10px 12px;
         font-size: 11px;
     }
-    
+
     td {
         padding: 12px;
         font-size: 13px;
     }
-    
+
     /* Header responsive */
     header {
         padding: 12px 16px;
     }
-    
+
     .logo {
         font-size: 18px;
     }
-    
+
     /* Show hamburger, hide desktop nav */
     .mobile-menu-toggle {
         display: flex;
     }
-    
+
     .nav-links {
         display: none;
     }
-    
+
     .mobile-nav {
         display: block;
     }
-    
+
     /* Typography responsive */
     h1 {
         font-size: 20px !important;
         margin-bottom: 20px !important;
     }
-    
+
     /* Buttons responsive */
     .btn {
         padding: 10px 16px;
         font-size: 13px;
     }
-    
+
     /* Client grid responsive */
     .client-grid {
         grid-template-columns: 1fr;
         gap: 16px;
     }
-    
+
     /* Card responsive */
     .card-header {
         padding: 16px;
@@ -542,26 +559,26 @@ body.menu-open {
         flex-wrap: wrap;
         gap: 12px;
     }
-    
+
     .card-body {
         padding: 16px;
     }
-    
+
     /* Client info fields on mobile */
-    .card-body > div {
+    .card-body>div {
         margin-bottom: 16px !important;
     }
-    
-    .card-body > div:last-child {
+
+    .card-body>div:last-child {
         margin-bottom: 0 !important;
     }
-    
-    .card-body > div > div:first-child {
+
+    .card-body>div>div:first-child {
         font-size: 11px !important;
         margin-bottom: 4px !important;
     }
-    
-    .card-body > div > div:last-child {
+
+    .card-body>div>div:last-child {
         font-size: 14px !important;
         word-break: break-word;
     }
@@ -620,12 +637,46 @@ body.menu-open {
 }
 
 /* Table */
-.table-container {
+.table-container,
+.table-responsive {
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 8px;
     overflow-x: auto;
     overflow-y: hidden;
+    width: 100%;
+    margin-bottom: 24px;
+    -webkit-overflow-scrolling: touch;
+    transition: box-shadow 0.2s ease;
+}
+
+.table-container:hover,
+.table-responsive:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+/* Custom Scrollbar for responsiveness */
+.table-container::-webkit-scrollbar,
+.table-responsive::-webkit-scrollbar {
+    height: 6px;
+    width: 6px;
+}
+
+.table-container::-webkit-scrollbar-track,
+.table-responsive::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 0 0 8px 8px;
+}
+
+.table-container::-webkit-scrollbar-thumb,
+.table-responsive::-webkit-scrollbar-thumb {
+    background: #ccc;
+    border-radius: 10px;
+}
+
+.table-container::-webkit-scrollbar-thumb:hover,
+.table-responsive::-webkit-scrollbar-thumb:hover {
+    background: var(--primary);
 }
 
 .table-header {
@@ -680,6 +731,78 @@ tr:last-child td {
     color: #137333;
 }
 
+/* Pending (small red circle) */
+.badge-pending {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: #dc2626;
+    color: white;
+    font-size: 12px;
+    line-height: 1;
+    margin-left: 6px;
+}
+
+.badge-pending.small {
+    min-width: 18px;
+    height: 18px;
+    font-size: 11px;
+    padding: 0 5px;
+}
+
+/* Positioning and style for nav badge */
+.has-badge {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    padding-right: 10px; /* small reserve so text doesn't collide */
+}
+
+/* Place the badge at the top-right corner of the link text */
+.has-badge .badge-pending {
+    position: absolute;
+    top: -6px; /* lift it above the link text */
+    right: -6px; /* nudge to the right corner */
+    transform: translate(0, 0);
+    border: 2px solid #fff; /* contrast edge */
+    box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+    font-size: 11px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 6px;
+    line-height: 1;
+}
+
+/* Slight adjustment for small variant in mobile nav */
+.has-badge .badge-pending.small {
+    top: -4px;
+    right: -8px;
+    min-width: 16px;
+    height: 16px;
+    font-size: 10px;
+    padding: 0 5px;
+}
+
+@media (max-width: 768px) {
+    .has-badge .badge-pending.small {
+        top: -4px;
+        right: -8px;
+    }
+}
+
+/* Visually hidden (screen-reader only) */
+.sr-only {
+    position: absolute !important;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0,0,0,0);
+    border: 0;
+    white-space: nowrap;
+}
 .badge-warning {
     background: #fef7e0;
     color: #b06000;
@@ -706,36 +829,100 @@ tr:last-child td {
 }
 
 /* Alerts */
+/* Flash Messages */
+
+/* Subtle danger button variant used for actions like 'Rejeter' to make them slightly redder */
+.btn-danger-soft {
+    background: rgba(220, 38, 38, 0.06);
+    border: 1px solid rgba(220, 38, 38, 0.16);
+    color: #991b1b;
+}
+.btn-danger-soft:hover,
+.btn-danger-soft:focus {
+    background: #dc2626;
+    border-color: #dc2626;
+    color: white;
+    text-decoration: none;
+}
+
+.flash-container {
+    position: fixed;
+    top: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 2000;
+    width: 100%;
+    max-width: 500px;
+    pointer-events: none;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
 .alert {
+    pointer-events: auto;
     border-radius: 8px;
     border: 1px solid var(--border);
     padding: 16px 20px;
     font-size: 14px;
-    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    animation: slideInDown 0.3s ease-out;
+    transition: opacity 0.3s, transform 0.3s;
+}
+
+@keyframes slideInDown {
+    from {
+        transform: translateY(-20px);
+        opacity: 0;
+    }
+
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
 }
 
 .alert-success {
     background: #e6f4ea;
     color: #137333;
-    border-color: #34a853;
+    border-left: 5px solid #34a853;
 }
 
 .alert-danger {
     background: #fce8e6;
     color: #c5221f;
-    border-color: #ea4335;
+    border-left: 5px solid #ea4335;
 }
 
 .alert-warning {
     background: #fef7e0;
     color: #b06000;
-    border-color: #fbbc04;
+    border-left: 5px solid #fbbc04;
 }
 
 .alert-info {
     background: #e8f0fe;
     color: #1967d2;
-    border-color: #4285f4;
+    border-left: 5px solid #4285f4;
+}
+
+.btn-close {
+    background: transparent;
+    border: none;
+    font-size: 14px;
+    cursor: pointer;
+    line-height: 1;
+    padding-left: 12px;
+    color: currentColor;
+    opacity: 0.6;
+    font-weight: bold;
+}
+
+.btn-close:hover {
+    opacity: 1;
 }
 
 /* Forms */
@@ -762,6 +949,12 @@ tr:last-child td {
     color: var(--text-primary);
     margin-bottom: 8px;
     display: block;
+}
+
+.invalid-feedback {
+    color: var(--danger-color, #dc2626);
+    font-size: 13px;
+    margin-top: 6px;
 }
 
 /* Cards */
@@ -870,6 +1063,14 @@ tr:last-child td {
 }
 
 /* Utilities */
+.collapse {
+    display: none;
+}
+
+.collapse.show {
+    display: table-row !important;
+}
+
 .text-muted {
     color: var(--text-secondary);
 }

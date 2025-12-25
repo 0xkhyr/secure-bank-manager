@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %}Preview: Chain - Option 3 (Grouped cards, compact){% endblock %}
+
+{% block content %}
+<div style="max-width:1000px;margin:24px auto;">
+  <h3>Chaîne - Option 3 (Grouped cards, compact)</h3>
+  <p class="small text-muted">Grouped context but using the compact nodes and gap style from Option 1.</p>
+
+  <div style="display:flex;gap:12px;">
+    <div style="flex:1;background:#fff;padding:12px;border-radius:8px;border:1px solid #eef2f7;">
+      <h6>Début</h6>
+      <div style="display:flex;gap:8px;align-items:center;"><div class="chain-node mini"><div class="node-id">#1</div></div><div class="text-muted">Création utilisateur</div></div>
+      <div style="display:flex;gap:8px;align-items:center;"><div class="chain-node mini"><div class="node-id">#2</div></div><div class="text-muted">Connexion</div></div>
+    </div>
+
+    <div style="flex:1;background:#fff5f5;padding:12px;border-radius:8px;border:1px solid #fecaca;">
+      <h6>Bloc compromis</h6>
+      <div style="display:flex;gap:8px;align-items:center;"><div class="chain-node mini broken"><div class="node-id">#52</div></div><div>#52 - Opération</div></div>
+      <div style="display:flex;gap:8px;align-items:center; font-weight:700;"><div class="chain-node mini broken"><div class="node-id">#53</div></div><div>#53 - Opération (hash invalide)</div></div>
+      <div style="display:flex;gap:8px;align-items:center;"><div class="chain-node mini broken"><div class="node-id">#54</div></div><div>#54 - Opération</div></div>
+    </div>
+
+    <div style="flex:1;background:#fff;padding:12px;border-radius:8px;border:1px solid #eef2f7;">
+      <h6>Fin</h6>
+      <div style="display:flex;gap:8px;align-items:center;"><div class="chain-node mini"><div class="node-id">#99</div></div><div class="text-muted">Clôture</div></div>
+      <div style="display:flex;gap:8px;align-items:center;"><div class="chain-node mini"><div class="node-id">#100</div></div><div class="text-muted">Clôture</div></div>
+    </div>
+  </div>
+
+  <hr>
+  <p class="small">Use this if you prefer grouped summaries but want the condensed, consistent visual style.</p>
+</div>
+
+<style>
+.chain-node.mini{ min-width:56px; min-height:46px; padding:6px; font-size:12px; }
+.chain-node{ min-width:80px; min-height:60px; background:#fff; border-radius:8px; display:flex; align-items:center; justify-content:center; box-shadow:0 1px 2px rgba(0,0,0,0.04); }
+.chain-node .node-id{ font-weight:700; }
+.chain-node.broken{ background:#fff5f5; border:1px solid #fecaca; }
+</style>
+
+{% endblock %}

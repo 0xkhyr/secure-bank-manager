@@ -15,6 +15,8 @@ from src.accounts import accounts_bp
 from src.operations import operations_bp
 from src.audit_logger import audit_bp
 from src.users import users_bp
+from src.dev import dev_bp
+from src.checker import checker_bp
 
 # Créer l'application Flask
 # On spécifie les dossiers templates et static car app.py est dans src/
@@ -78,6 +80,29 @@ def inject_now():
         'csrf_token': generate_csrf_token
     }
 
+
+# Inject pending approbations count for admins (used to display nav badge)
+@app.context_processor
+def inject_pending_approbations():
+    from flask import g
+    try:
+        if not getattr(g, 'user', None):
+            return {}
+        if g.user.role.value not in ['admin', 'superadmin']:
+            return {}
+        # Use a temporary non-scoped session to avoid interfering with request-scoped sessions
+        from src.db import session_factory
+        session = session_factory()
+        try:
+            from src.models import OperationEnAttente, StatutAttente
+            count = session.query(OperationEnAttente).filter_by(statut=StatutAttente.PENDING).count()
+        finally:
+            session.close()
+        return {'pending_approbations_count': count}
+    except Exception:
+        return {}
+
+
 # Rate limiting (Flask-Limiter)
 try:
     from flask_limiter import Limiter
@@ -103,6 +128,11 @@ app.register_blueprint(accounts_bp)
 app.register_blueprint(operations_bp)
 app.register_blueprint(audit_bp)
 app.register_blueprint(users_bp)
+app.register_blueprint(checker_bp)
+
+# Outils de dev (uniquement en debug/dev)
+if app.debug:
+    app.register_blueprint(dev_bp)
 
 # Apply login rate limit at app level to avoid circular import / decorator ordering issues
 if limiter:
@@ -160,6 +190,15 @@ def profile():
     return _users_profile_view()
 
 # Initialiser la base de données au démarrage
+@app.teardown_appcontext
+def shutdown_session(exception=None):
+    """
+    Nettoye la session SQLAlchemy à la fin de chaque requête.
+    Indispensable pour scoped_session.
+    """
+    from src.db import Session
+    Session.remove()
+
 with app.app_context():
     if verifier_connexion():
         print("✓ Base de données connectée")

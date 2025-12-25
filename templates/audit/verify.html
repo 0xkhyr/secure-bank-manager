@@ -21,6 +21,11 @@
                     <p style="margin-bottom: 8px;"><strong>Total d'entrées :</strong> {{ result.total }}</p>
                     <p style="margin-bottom: 8px;"><strong>Entrées invalides :</strong> {{ result.invalid }}</p>
                     
+                    <div style="margin-top: 12px; display:flex; gap:8px;">
+                        <a href="{{ url_for('audit.verify_chain') }}" class="btn btn-outline-danger">Visualiser la chaîne</a>
+                        <a href="{{ url_for('dev.verify_preview_playbook') }}" class="btn btn-outline-secondary">Voir Playbook</a>
+                    </div>
+                    
                     {% if result.invalid_entries %}
                     <h4 style="font-size: 16px; font-weight: 500; margin-top: 24px; margin-bottom: 12px;">Entrées corrompues :</h4>
                     <ul style="margin: 0; padding-left: 24px;">

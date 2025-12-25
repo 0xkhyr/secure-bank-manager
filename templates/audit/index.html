@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "components/datalist.html" import custom_datalist %}
 
 {% block title %}Journal d'Audit - SecureBank{% endblock %}
 
@@ -6,8 +7,192 @@
 <div style="max-width: 1200px; margin: 0 auto;">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
         <h1 style="font-size: 24px; font-weight: 400;">Journal d'Audit</h1>
-    <a href="{{ url_for('audit.verify') }}" class="btn btn-primary" style="background: #f9ab00; border-color: #f9ab00; color: var(--text-primary);">Vérifier Intégrité</a>
-</div>
+        <div style="display: flex; gap: 8px;">
+            <a href="{{ url_for('audit.clotures') }}" class="btn btn-outline-primary" style="border: 1px solid var(--primary-color); padding: 8px 16px;">
+                <i class="bi bi-calendar-check"></i> Clôtures Quotidiennes
+            </a>
+            <form action="{{ url_for('audit.verify') }}" method="POST" style="margin: 0;">
+                <button type="submit" class="btn btn-primary" style="background: #f9ab00; border-color: #f9ab00; color: var(--text-primary);">Vérifier Intégrité</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Custom Filter Styles -->
+    <style>
+        .filter-container {
+            background: #ffffff;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            margin-bottom: 24px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+            /* overflow: hidden; Removed to allow datalist dropdown to show */
+        }
+        
+        .filter-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid #eee;
+            background: #fcfcfc;
+            font-weight: 600;
+            color: #333;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .filter-body {
+            padding: 20px;
+        }
+
+        .filter-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 16px;
+        }
+
+        /* Desktop: All on one line */
+        @media (min-width: 992px) {
+            .filter-grid {
+                grid-template-columns: repeat(4, 1fr) auto; /* 4 inputs + buttons */
+                align-items: end;
+            }
+        }
+
+        /* Tablet: 2 lines */
+        @media (min-width: 600px) and (max-width: 991px) {
+            .filter-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+            .filter-actions {
+                grid-column: 1 / -1; /* Buttons take full width at bottom */
+            }
+        }
+
+        .filter-group label {
+            display: block;
+            margin-bottom: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            color: #555;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .filter-group input, 
+        .filter-group select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            color: #333;
+            background-color: #fff;
+            transition: border-color 0.2s;
+        }
+
+        .filter-group input:focus, 
+        .filter-group select:focus {
+            border-color: var(--primary, #1a73e8);
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.1);
+        }
+
+        .filter-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn-filter, .btn-reset {
+            padding: 10px 20px;
+            border-radius: 6px;
+            font-weight: 500;
+            font-size: 14px;
+            cursor: pointer;
+            text-decoration: none;
+            text-align: center;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s;
+            height: 42px; /* Match input height roughly */
+        }
+
+        .btn-filter {
+            background-color: var(--primary, #1a73e8);
+            color: white;
+            border: 1px solid var(--primary, #1a73e8);
+            flex: 2;
+        }
+
+        .btn-filter:hover {
+            background-color: #1557b0;
+        }
+
+        .btn-reset {
+            background-color: #f8f9fa;
+            color: #555;
+            border: 1px solid #ddd;
+            flex: 1;
+        }
+
+        .btn-reset:hover {
+            background-color: #eee;
+            color: #333;
+        }
+    </style>
+
+    <div class="filter-container animate__animated animate__fadeIn">
+        <div class="filter-header">
+            <i class="bi bi-sliders"></i> Recherche Avancée
+        </div>
+        <div class="filter-body">
+            <form method="GET" action="{{ url_for('audit.index') }}">
+                <div class="filter-grid">
+                    <!-- Date Début -->
+                    <div class="filter-group">
+                        <label for="start_date">Du</label>
+                        <input type="date" name="start_date" id="start_date" value="{{ filters.start_date or '' }}">
+                    </div>
+
+                    <!-- Date Fin -->
+                    <div class="filter-group">
+                        <label for="end_date">Au</label>
+                        <input type="date" name="end_date" id="end_date" value="{{ filters.end_date or '' }}">
+                    </div>
+
+                    <!-- Utilisateur -->
+                    <div class="filter-group">
+                        <label for="user_datalist">Utilisateur</label>
+                        {% set user_options = [] %}
+                        {% for u in utilisateurs %}
+                            {% set _ = user_options.append({'value': u.id, 'label': u.nom_utilisateur}) %}
+                        {% endfor %}
+
+                        {{ custom_datalist('user_id', user_options, optionValue='value', optionLabel='label', selected=filters.user_id, placeholder="Sélectionner un utilisateur...", id='user_datalist') }}
+                    </div>
+
+                    <!-- Action -->
+                    <div class="filter-group">
+                        <label for="action_datalist">Action</label>
+                        {% set action_options = [] %}
+                        {% for act in actions %}
+                            {% set _ = action_options.append({'value': act, 'label': act}) %}
+                        {% endfor %}
+                        {{ custom_datalist('action', action_options, optionValue='value', optionLabel='label', selected=filters.action, placeholder="Rechercher une action...", id='action_datalist') }}
+                    </div>
+
+                    <!-- Boutons -->
+                    <div class="filter-actions">
+                        <button type="submit" class="btn-filter">
+                            <i class="bi bi-search" style="margin-right: 6px;"></i> Filtrer
+                        </button>
+                        <a href="{{ url_for('audit.index') }}" class="btn-reset" title="Réinitialiser">
+                            <i class="bi bi-x-lg"></i>
+                        </a>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
 
 <div class="table-container">
     <div class="table-header">
@@ -18,7 +203,6 @@
             <tr>
                 <th>ID</th>
                 <th>Horodatage</th>
-                <th>ID User</th>
                 <th>Utilisateur</th>
                 <th>Action</th>
                 <th>Cible</th>
@@ -30,13 +214,6 @@
             <tr>
                 <td>{{ entry.id }}</td>
                 <td>{{ entry.horodatage.strftime('%d/%m/%Y %H:%M:%S') }}</td>
-                <td>
-                    {% if entry.utilisateur_id %}
-                        <span style="color: var(--text-secondary); font-family: monospace;">{{ entry.utilisateur_id }}</span>
-                    {% else %}
-                        <span style="color: var(--text-secondary);">-</span>
-                    {% endif %}
-                </td>
                 <td>
                     {% if entry.utilisateur %}
                       <a href="{{ url_for('users.view', id=entry.utilisateur_id) }}">{{ entry.utilisateur.nom_utilisateur }}</a>
@@ -52,8 +229,8 @@
             </tr>
             {% else %}
             <tr>
-                <td colspan="7" style="text-align: center; color: var(--text-secondary); padding: 32px;">
-                    Aucune entrée d'audit.
+                <td colspan="6" style="text-align: center; color: var(--text-secondary); padding: 32px;">
+                    Aucune entrée d'audit ne correspond à vos filtres.
                 </td>
             </tr>
             {% endfor %}
@@ -65,17 +242,17 @@
 {% if total_pages > 1 %}
 <div style="display: flex; justify-content: center; gap: 8px; margin-top: 24px;">
     {% if page > 1 %}
-    <a href="{{ url_for('audit.index', page=page-1) }}" class="btn">Précédent</a>
+    <a href="{{ url_for('audit.index', page=page-1, **filters) }}" class="btn">Précédent</a>
     {% endif %}
 
     {% for page_num in range(max(1, page-2), min(total_pages+1, page+3)) %}
-    <a href="{{ url_for('audit.index', page=page_num) }}" 
+    <a href="{{ url_for('audit.index', page=page_num, **filters) }}" 
        class="btn {{ 'btn-primary' if page_num == page else '' }}" 
        style="padding: 8px 16px;">{{ page_num }}</a>
     {% endfor %}
 
     {% if page < total_pages %}
-    <a href="{{ url_for('audit.index', page=page+1) }}" class="btn">Suivant</a>
+    <a href="{{ url_for('audit.index', page=page+1, **filters) }}" class="btn">Suivant</a>
     {% endif %}
 </div>
 {% endif %}

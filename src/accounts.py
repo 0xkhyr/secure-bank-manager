@@ -30,9 +30,14 @@ def create(client_id):
     client = session.query(Client).filter_by(id=client_id).first()
     
     if client is None:
-        session.close()
         flash('Client introuvable.', 'danger')
         return redirect(url_for('clients.index'))
+
+    # VERIFICATION: Le client doit être actif pour créer un compte
+    client_statut = client.statut.value
+    if client_statut != 'actif':
+        flash(f'Action impossible : le client est {client_statut}.', 'danger')
+        return redirect(url_for('clients.view', id=client_id))
 
     if request.method == 'POST':
         montant_initial = request.form['montant_initial']
@@ -84,13 +89,8 @@ def create(client_id):
         if error is not None:
             flash(error, 'danger')
     
-    # Forcer le chargement des attributs du client avant de rendre le template
-    _ = client.nom_complet
-    _ = client.cin
-    
     # Ne pas fermer la session avant de rendre le template car le template accède aux propriétés du client
     result = render_template('accounts/create.html', client=client, config=Config)
-    session.close()
     return result
 
 @accounts_bp.route('/<int:id>')
@@ -101,7 +101,6 @@ def view(id):
     compte = session.query(Compte).filter_by(id=id).first()
     
     if compte is None:
-        session.close()
         flash('Compte introuvable.', 'danger')
         return redirect(url_for('clients.index'))
     
@@ -111,14 +110,13 @@ def view(id):
     # Charger l'historique des opérations (plus récent en premier)
     operations = session.query(Operation).filter_by(compte_id=id).order_by(Operation.date_operation.desc()).all()
     nb_operations = len(operations)
-    session.close()
-    
     # Logger la consultation du compte et de l'historique
     log_action(g.user.id, "CONSULTATION_COMPTE", f"Compte {compte.numero_compte}",
                {"compte_id": id, "numero_compte": compte.numero_compte, 
                 "client_id": client_id, "nb_operations": nb_operations})
     
-    return render_template('accounts/view.html', compte=compte, client_id=client_id, operations=operations)
+    response = render_template('accounts/view.html', compte=compte, client_id=client_id, operations=operations)
+    return response
 
 @accounts_bp.route('/<int:id>/cloturer', methods=('POST',))
 @permission_required('accounts.close')
@@ -131,12 +129,10 @@ def close(id):
     compte = session.query(Compte).filter_by(id=id).first()
     
     if compte is None:
-        session.close()
         flash('Compte introuvable.', 'danger')
         return redirect(url_for('clients.index'))
         
     if compte.solde != 0:
-        session.close()
         flash('Impossible de clôturer un compte avec un solde positif. Veuillez tout retirer d\'abord.', 'danger')
         return redirect(url_for('accounts.view', id=id))
     
@@ -156,7 +152,6 @@ def close(id):
         session.rollback()
         flash(f'Erreur : {e}', 'danger')
         
-    session.close()
     return redirect(url_for('clients.view', id=client_id))
 
 
@@ -171,13 +166,17 @@ def reopen(id):
     compte = session.query(Compte).filter_by(id=id).first()
     
     if compte is None:
-        session.close()
         flash('Compte introuvable.', 'danger')
         return redirect(url_for('clients.index'))
     
     if compte.statut.value != 'ferme':
-        session.close()
         flash('Ce compte n\'est pas fermé.', 'danger')
+        return redirect(url_for('accounts.view', id=id))
+
+    # VERIFICATION: Le client doit être actif pour réouvrir un compte
+    titulaire_statut = compte.client.statut.value
+    if titulaire_statut != 'actif':
+        flash(f'Action impossible : le titulaire du compte est {titulaire_statut}.', 'danger')
         return redirect(url_for('accounts.view', id=id))
     
     # Récupérer la raison de réouverture
@@ -196,5 +195,4 @@ def reopen(id):
         session.rollback()
         flash(f'Erreur : {e}', 'danger')
         
-    session.close()
     return redirect(url_for('accounts.view', id=compte_id))

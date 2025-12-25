@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+
+{% block title %}Preview: Chain - Option 4 (Linked chain view){% endblock %}
+
+{% block content %}
+<div style="max-width:1100px;margin:24px auto;">
+  <h3>Chaîne - Option 4 (Linked chain view)</h3>
+  <p class="small text-muted">A more literal chain visualization showing linked items with short hash snippets and link icons.</p>
+
+  <div style="overflow:auto;padding:16px;background:#f9fafb;border-radius:8px;">
+    <div style="display:flex;gap:18px;align-items:center;">
+      <div class="chain-card">
+        <div class="chain-node">#1</div>
+        <div class="chain-hash">a7b3...9f1c</div>
+      </div>
+
+      <div class="chain-link large">🔗</div>
+
+      <div class="chain-card broken">
+        <div class="chain-node">#53</div>
+        <div class="chain-hash">zz12...abcd</div>
+      </div>
+
+      <div class="chain-link">🔗</div>
+
+      <div class="chain-gap">… 46 entrées …</div>
+
+      <div class="chain-link">🔗</div>
+
+      <div class="chain-card">
+        <div class="chain-node">#100</div>
+        <div class="chain-hash">f2e9...0b2a</div>
+      </div>
+    </div>
+  </div>
+
+  <hr>
+  <p class="small">This option emphasizes the cryptographic linkage by showing short hash glimpses adjacent to the nodes and a clear link icon.</p>
+</div>
+
+<style>
+.chain-card{ min-width:120px; background:#fff; padding:10px 12px; border-radius:8px; box-shadow:0 1px 2px rgba(0,0,0,0.04); text-align:center }
+.chain-node{ font-weight:700; font-size:14px }
+.chain-hash{ font-size:12px; color:#6b7280; margin-top:6px }
+.chain-link{ font-size:18px; color:#9ca3af }
+.chain-link.large{ font-size:28px }
+.chain-card.broken{ background:#fff5f5; border:1px solid #fecaca }
+.chain-gap{ min-width:140px; text-align:center; color:#6b7280; background:#f8fafc; padding:10px 12px; border-radius:8px; font-style:italic }
+</style>
+{% endblock %}

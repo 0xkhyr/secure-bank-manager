@@ -12,8 +12,8 @@ Tous les modèles utilisent SQLAlchemy ORM pour faciliter les opérations CRUD
 et garantir l'intégrité des données.
 """
 
-from datetime import datetime, timedelta
-from sqlalchemy import Column, Integer, String, Numeric, DateTime, ForeignKey, Text, Enum, Boolean
+from datetime import datetime, timedelta, date as py_date
+from sqlalchemy import Column, Integer, String, Numeric, DateTime, ForeignKey, Text, Enum, Boolean, Date, JSON
 from sqlalchemy.orm import relationship, declarative_base
 import enum
 import secrets
@@ -56,6 +56,25 @@ class StatutCompte(enum.Enum):
     SUSPENDU = "suspendu"
 
 
+class StatutClient(enum.Enum):
+    """
+    Énumération des statuts possibles pour un client.
+    """
+    ACTIF = "actif"
+    INACTIF = "inactif"
+    SUSPENDU = "suspendu"
+    ARCHIVE = "archive"
+
+
+class StatutAttente(enum.Enum):
+    """
+    Énumération des statuts pour le système Maker-Checker.
+    """
+    PENDING = "PENDING"
+    APPROVED = "APPROVED"
+    REJECTED = "REJECTED"
+
+
 # Générateur de numéro de compte unique
 def gen_numero_compte():
     return f"CPT{datetime.utcnow().strftime('%y%m%d')}{secrets.randbelow(10**6):06d}"
@@ -70,7 +89,7 @@ class Utilisateur(Base):
         id : Identifiant unique
         nom_utilisateur : Nom d'utilisateur (unique)
         mot_de_passe_hash : Mot de passe hashé avec bcrypt
-        role : Rôle (ADMIN ou OPERATEUR)
+        role : Rôle (SUPERSADMIN, ADMIN ou OPERATEUR)
         date_creation : Date de création du compte
         derniere_connexion : Dernière connexion
         tentatives_connexion : Nombre de tentatives de connexion échouées (pour verrouillage)
@@ -144,6 +163,7 @@ class Client(Base):
     telephone = Column(String(20), nullable=False)
     email = Column(String(100), nullable=True)
     adresse = Column(Text, nullable=True)
+    statut = Column(Enum(StatutClient), default=StatutClient.ACTIF, nullable=False)
     date_creation = Column(DateTime, default=datetime.utcnow, nullable=False)
     date_modification = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
     
@@ -267,8 +287,12 @@ class Operation(Base):
     
     # Relations
     compte = relationship('Compte', back_populates='operations')
-    utilisateur = relationship('Utilisateur')
-
+    # Disambiguate foreign key because there is also valide_par_id pointing to utilisateurs
+    utilisateur = relationship('Utilisateur', foreign_keys=[utilisateur_id])
+    
+    # Champ pour enregistrer qui a validé (checker) l'opération si applicable
+    valide_par_id = Column(Integer, ForeignKey('utilisateurs.id'), nullable=True)
+    valide_par = relationship('Utilisateur', foreign_keys=[valide_par_id])
 
     def validate_business_rules(self):
         """
@@ -340,3 +364,64 @@ class Journal(Base):
     
     def __repr__(self):
         return f"<Journal(id={self.id}, action='{self.action}', horodatage='{self.horodatage}')>"
+
+
+class ClotureJournal(Base):
+    """
+    Modèle ClotureJournal : Checkpoint quotidien pour l'intégrité de l'audit.
+    
+    Ce modèle représente une signature consolidée de tous les logs d'une journée.
+    Il permet de valider l'intégrité temporelle par blocs (jours).
+    
+    Attributs :
+        id : Identifiant unique
+        date : Date de la clôture (YYYY-MM-DD)
+        dernier_log_id : ID du dernier log inclus dans cette clôture
+        hash_racine : Hash consolidé (hash_actuel du dernier log)
+        signature_hmac : Signature HMAC du hash racine pour garantir l'origine
+        cloture_le : Date et heure de création de la clôture
+    """
+    __tablename__ = 'clotures_journaux'
+    
+    id = Column(Integer, primary_key=True)
+    date = Column(Date, nullable=False, unique=True, index=True)
+    dernier_log_id = Column(Integer, ForeignKey('journaux.id'), nullable=False)
+    hash_racine = Column(String(64), nullable=False)
+    signature_hmac = Column(String(64), nullable=False)
+    cloture_le = Column(DateTime, default=datetime.utcnow, nullable=False)
+    
+    # Relation
+    dernier_log = relationship('Journal')
+    
+    def __repr__(self):
+        return f"<ClotureJournal(id={self.id}, date='{self.date}', hash='{self.hash_racine[:10]}...')>"
+
+
+class OperationEnAttente(Base):
+    """
+    Modèle OperationEnAttente : Système Maker-Checker (Principe des 4 yeux).
+    Stocke une opération en attente de validation par un administrateur.
+    """
+    __tablename__ = 'operations_en_attente'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    type_operation = Column(String(50), nullable=False) # ex: 'RETRAIT_IMPORTANT', 'OUVERTURE_COMPTE'
+    payload = Column(JSON, nullable=False) # Données de l'opération en format JSON
+
+    cree_par_id = Column(Integer, ForeignKey('utilisateurs.id'), nullable=False)
+    valide_par_id = Column(Integer, ForeignKey('utilisateurs.id'), nullable=True)
+
+    statut = Column(Enum(StatutAttente), default=StatutAttente.PENDING, nullable=False)
+    cree_le = Column(DateTime, default=datetime.utcnow, nullable=False)
+    valide_le = Column(DateTime, nullable=True)
+    
+    # Détails de la décision
+    decision_reason = Column(String(255), nullable=True)
+    decision_comment = Column(Text, nullable=True)
+
+    # Relations
+    cree_par = relationship('Utilisateur', foreign_keys=[cree_par_id])
+    valide_par = relationship('Utilisateur', foreign_keys=[valide_par_id])
+
+    def __repr__(self):
+        return f"<OperationEnAttente(id={self.id}, type='{self.type_operation}', statut='{self.statut.value}')>"

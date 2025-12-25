@@ -16,6 +16,7 @@
                 <th>ID</th>
                 <th>Nom Complet</th>
                 <th>CIN</th>
+                <th>Statut</th>
                 <th>Téléphone</th>
                 <th>Email</th>
                 <th>Actions</th>
@@ -27,6 +28,17 @@
                 <td>{{ client.id }}</td>
                 <td>{{ client.nom_complet }}</td>
                 <td><span class="badge bg-secondary">{{ client.cin }}</span></td>
+                <td>
+                    {% if client.statut.value == 'actif' %}
+                        <span class="badge badge-success">Actif</span>
+                    {% elif client.statut.value == 'inactif' %}
+                        <span class="badge badge-warning">Inactif</span>
+                    {% elif client.statut.value == 'suspendu' %}
+                        <span class="badge bg-danger">Suspendu</span>
+                    {% elif client.statut.value == 'archive' %}
+                        <span class="badge bg-secondary">Archivé</span>
+                    {% endif %}
+                </td>
                 <td>{{ client.telephone }}</td>
                 <td>{{ client.email or '-' }}</td>
                 <td>
@@ -35,7 +47,7 @@
             </tr>
             {% else %}
             <tr>
-                <td colspan="6" style="text-align: center; color: var(--text-secondary); padding: 32px;">
+                <td colspan="7" style="text-align: center; color: var(--text-secondary); padding: 32px;">
                     Aucun client trouvé.
                 </td>
             </tr>

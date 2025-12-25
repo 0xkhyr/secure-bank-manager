@@ -30,17 +30,98 @@
                 <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">Adresse</div>
                 <div style="font-size: 13px;">{{ client.adresse or '-' }}</div>
             </div>
-            <div>
-                <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">Client depuis</div>
+            <div style="margin-bottom: 20px;">
+                <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">Date de création</div>
                 <div>{{ client.date_creation.strftime('%d/%m/%Y') }}</div>
+            </div>
+            <div style="margin-bottom: 20px;">
+                <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">Statut Actuel</div>
+                <div>
+                    {% if client.statut.value == 'actif' %}
+                        <span class="badge badge-success">Actif</span>
+                    {% elif client.statut.value == 'inactif' %}
+                        <span class="badge badge-warning">Inactif</span>
+                    {% elif client.statut.value == 'suspendu' %}
+                        <span class="badge bg-danger">Suspendu</span>
+                    {% elif client.statut.value == 'archive' %}
+                        <span class="badge bg-secondary">Archivé</span>
+                    {% endif %}
+                </div>
+            </div>
+
+            <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 20px 0;">
+            
+            <div class="management-actions">
+                <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 12px;">Gestion Administrative</div>
+                
+                {% if client.statut.value == 'actif' %}
+                    <div style="display: flex; flex-direction: column; gap: 10px;">
+                        <button type="button" class="btn btn-warning" style="width: 100%; padding: 8px; font-size: 13px; color: #b06000;" onclick="handleMgmt('suspend')">Suspendre le Client</button>
+                        <button type="button" class="btn btn-danger" style="width: 100%; padding: 8px; font-size: 13px;" onclick="handleMgmt('inactive')">Désactiver le Client</button>
+                        <button type="button" class="btn" style="width: 100%; padding: 8px; font-size: 13px; border: 1px solid var(--border-color);" onclick="handleMgmt('archive')">Archiver le Client</button>
+                    </div>
+                {% else %}
+                    <button type="button" class="btn btn-success" style="width: 100%; padding: 8px; font-size: 13px;" onclick="handleMgmt('reactivate')">Réactiver le Client</button>
+                {% endif %}
             </div>
         </div>
     </div>
 
+    <!-- Reusable Modal -->
+    {% include 'components/management_modal.html' %}
+
+    <script>
+    const mgmtConfigs = {
+        suspend: {
+            title: 'Suspendre le client',
+            action: '{{ url_for("clients.deactivate", id=client.id) }}',
+            extraField: { name: 'statut', value: 'suspendu' },
+            submitText: 'Confirmer la suspension',
+            submitStyle: 'background: #fbbc04; border-color: #fbbc04; color: #202124;',
+            reasons: [
+                'Suspicion de fraude',
+                'Dossier KYC incomplet',
+                'Réquisition judiciaire',
+                'Comportement suspect',
+                'Vérification en cours'
+            ]
+        },
+        inactive: {
+            title: 'Désactiver le client',
+            action: '{{ url_for("clients.deactivate", id=client.id) }}',
+            extraField: { name: 'statut', value: 'inactif' },
+            submitText: 'Confirmer la désactivation',
+            submitStyle: 'background: #d93025; border-color: #d93025; color: white;',
+            reasons: ['Demande client', 'Inactivité prolongée', 'Conformité réglementaire', 'Décision administrative', 'Fin de contrat']
+        },
+        archive: {
+            title: 'Archiver le client',
+            action: '{{ url_for("clients.deactivate", id=client.id) }}',
+            extraField: { name: 'statut', value: 'archive' },
+            submitText: 'Confirmer l\'archivage',
+            submitStyle: 'background: #6c757d; border-color: #6c757d; color: white;',
+            reasons: ['Clôture définitive du dossier', 'Obligation de conservation légale', 'Client parti à la concurrence', 'Ancien client (historique uniquement)']
+        },
+        reactivate: {
+            title: 'Réactiver le client',
+            action: '{{ url_for("clients.reactivate", id=client.id) }}',
+            submitText: 'Confirmer la réactivation',
+            submitStyle: 'background: #1e8e3e; border-color: #1e8e3e; color: white;',
+            reasons: ['Reprise de la relation client', 'Correction d\'erreur de statut', 'Révision de dossier approuvée', 'Fin de suspension']
+        }
+    };
+
+    function handleMgmt(type) {
+        showManagementModal(mgmtConfigs[type]);
+    }
+    </script>
+
     <div class="table-container">
     <div class="table-header" style="display: flex; justify-content: space-between; align-items: center;">
         <div class="table-title">Comptes Bancaires</div>
-        <a href="{{ url_for('accounts.create', client_id=client.id) }}" class="btn btn-primary" style="padding: 6px 16px; font-size: 13px;">Nouveau Compte</a>
+        {% if client.statut.value == 'actif' %}
+            <a href="{{ url_for('accounts.create', client_id=client.id) }}" class="btn btn-primary" style="padding: 6px 16px; font-size: 13px;">Nouveau Compte</a>
+        {% endif %}
     </div>
     {% if comptes %}
                 <table>
@@ -77,7 +158,9 @@
                 {% else %}
                 <div style="text-align: center; padding: 48px; color: var(--text-secondary);">
                     <p style="margin-bottom: 16px;">Ce client n'a aucun compte bancaire.</p>
-                    <a href="{{ url_for('accounts.create', client_id=client.id) }}" class="btn btn-primary">Ouvrir un premier compte</a>
+                    {% if client.statut.value == 'actif' %}
+                        <a href="{{ url_for('accounts.create', client_id=client.id) }}" class="btn btn-primary">Ouvrir un premier compte</a>
+                    {% endif %}
                 </div>
                 {% endif %}
                 </div>

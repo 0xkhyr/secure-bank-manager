@@ -1,0 +1,52 @@
+{% extends 'base.html' %}
+
+{% block title %}Preview - Vérif Intégrité (Diff Viewer) - SecureBank{% endblock %}
+
+{% block content %}
+<div style="max-width: 900px; margin: 24px auto;">
+    <h2>Preview: Diff Viewer</h2>
+
+    <div class="card mt-3">
+        <div class="card-body">
+            <p class="text-muted">Comparaison côté‑à‑côté: Hash/JSON attendu vs réel.</p>
+
+            <div style="display:flex; gap:12px;">
+                <div style="flex:1;">
+                    <div class="panel">
+                        <div class="panel-title">Attendu (hash / payload)</div>
+                        <pre class="panel-code">{
+  "id": 1240,
+  "action": "RETRAIT",
+  "montant": "350.000",
+  "hash": "abcde12345f..."
+}</pre>
+                    </div>
+                </div>
+                <div style="flex:1;">
+                    <div class="panel">
+                        <div class="panel-title">Réel (hash / payload)</div>
+                        <pre class="panel-code">{
+  "id": 1240,
+  "action": "RETRAIT",
+  "montant": "350.000",
+  "hash": "abxxe99999f..."
+}</pre>
+                    </div>
+                </div>
+            </div>
+
+            <div style="margin-top:12px;">
+                <strong>Diff:</strong>
+                <pre style="background:#111827;color:#fff;padding:8px;border-radius:6px;">- "hash": "abcde12345f..."\n+ "hash": "abxxe99999f..."</pre>
+                <div class="mt-3"><a class="btn btn-outline-primary">Exporter preuve</a> <a class="btn btn-danger">Marquer comme critique</a></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.panel{ background:#f9fafb; border-radius:6px; padding:10px; }
+.panel-title{ font-weight:600; margin-bottom:8px; }
+.panel-code{ background:#fff; border:1px solid #e6e7eb; padding:12px; border-radius:6px; font-family:monospace; font-size:13px; }
+</style>
+{% endblock %}

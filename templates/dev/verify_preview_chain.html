@@ -1,0 +1,81 @@
+{% extends 'base.html' %}
+
+{% block title %}Preview - Vérif Intégrité (Chaîne) - SecureBank{% endblock %}
+
+{% block content %}
+<div style="max-width: 1000px; margin: 24px auto;">
+    <h2>Preview: Visualisation Chaîne</h2>
+
+    <div class="card mt-3">
+        <div class="card-body">
+            <p class="text-muted">Choisissez une mise en page parmi les options suivantes :</p>
+
+            <div style="display:flex;gap:12px;margin-bottom:12px;">
+                <a class="card p-2" href="{{ url_for('dev.verify_preview_chain_option1') }}" style="text-decoration:none;">
+                    <strong>Option 1</strong><br><small>Horizontal compact</small>
+                </a>
+                <a class="card p-2" href="{{ url_for('dev.verify_preview_chain_option2') }}" style="text-decoration:none;">
+                    <strong>Option 2</strong><br><small>Compact timeline</small>
+                </a>
+                <a class="card p-2" href="{{ url_for('dev.verify_preview_chain_option3') }}" style="text-decoration:none;">
+                    <strong>Option 3</strong><br><small>Grouped cards</small>
+                </a>
+                <a class="card p-2" href="{{ url_for('dev.verify_preview_chain_option4') }}" style="text-decoration:none;">
+                    <strong>Option 4</strong><br><small>Linked chain view</small>
+                </a>
+                <a class="card p-2" href="{{ url_for('dev.verify_preview_chain_option5') }}" style="text-decoration:none;">
+                    <strong>Option 5</strong><br><small>Vertical detailed chain</small>
+                </a>
+                <a class="card p-2" href="{{ url_for('dev.verify_preview_chain_option6') }}" style="text-decoration:none;">
+                    <strong>Option 6</strong><br><small>Minimal audit chain</small>
+                </a>
+                <a class="card p-2" href="{{ url_for('dev.verify_preview_chain_option6') }}" style="text-decoration:none;">
+                    <strong>Option 6</strong><br><small>Block headers</small>
+                </a>
+                <a class="card p-2" href="{{ url_for('dev.verify_preview_chain_option7') }}" style="text-decoration:none;">
+                    <strong>Option 7</strong><br><small>Stacked blocks</small>
+                </a>
+            </div>
+
+            <hr>
+
+            <p class="text-muted">Exemple (preview statique) :</p>
+
+            <div class="chain-container" style="display:flex; gap:12px; align-items:center; overflow:auto; padding:12px 6px;">
+                {% for i in range(1,28) %}
+                    {% if i in [7,8,9] %}
+                    <div class="chain-node broken">
+                        <div class="node-id">#{{ 1200+i }}</div>
+                    </div>
+                    {% else %}
+                    <div class="chain-node">
+                        <div class="node-id">#{{ 1200+i }}</div>
+                    </div>
+                    {% endif %}
+                    {% if not loop.last %}
+                        <div class="chain-link">→</div>
+                    {% endif %}
+                {% endfor %}
+            </div>
+
+            <div style="margin-top:16px;">
+                <p><strong>Note :</strong> Les nœuds rouges représentent des entrées corrompues. Cliquez sur un nœud pour afficher le détail (preview statique).</p>
+                <div style="display:flex; gap:12px;">
+                    <a class="btn btn-outline-secondary" href="#">Exporter JSON</a>
+                    <a class="btn btn-danger" href="#">Isoler plage</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.chain-node{
+    min-width:80px; min-height:60px; background:#f3f4f6; border-radius:8px; display:flex; align-items:center; justify-content:center; box-shadow:0 1px 2px rgba(0,0,0,0.04);
+}
+.chain-node.broken{ background:#fee2e2; border:1px solid #fca5a5; }
+.chain-link{ color:#7c7c7c; font-weight:600; }
+.node-id{ font-size:13px; font-weight:600; }
+</style>
+
+{% endblock %}

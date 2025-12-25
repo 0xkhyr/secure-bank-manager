@@ -29,6 +29,13 @@ class Config:
     MAX_LOGIN_ATTEMPTS = int(os.getenv('MAX_LOGIN_ATTEMPTS', '5'))
     SESSION_TIMEOUT = int(os.getenv('SESSION_TIMEOUT', '3600'))  # en secondes
     
+    # Audit Genesis Hash (SHA-256 of "SECURE_BANK_GENESIS")
+    # Il s'agit du point d'ancrage immuable de la chaîne d'audit.
+    GENESIS_HASH = os.getenv('GENESIS_HASH', "8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918")
+    
+    # Maker-Checker threshold for sensitive operations (e.g. withdrawals > threshold)
+    MAKER_CHECKER_THRESHOLD = Decimal(os.getenv('MAKER_CHECKER_THRESHOLD', '200.000'))
+    
     # Timezone - Tunisie (UTC+1)
     TIMEZONE_OFFSET_HOURS = int(os.getenv('TIMEZONE_OFFSET_HOURS', '1'))
     # Durée du verrouillage après dépassement des tentatives (en minutes)

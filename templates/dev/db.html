@@ -1,0 +1,171 @@
+{% extends 'base.html' %}
+
+{% block title %}Dev DB Manager - SecureBank{% endblock %}
+
+{% block content %}
+<style>
+    :root {
+        --glass-bg: rgba(255, 255, 255, 0.7);
+        --glass-border: rgba(255, 255, 255, 0.3);
+    }
+    
+    .dev-container {
+        max-width: 1000px;
+        margin: 0 auto;
+        padding: 40px 20px;
+    }
+    
+    .glass-card {
+        background: var(--glass-bg);
+        backdrop-filter: blur(15px);
+        -webkit-backdrop-filter: blur(15px);
+        border: 1px solid var(--glass-border);
+        border-radius: 20px;
+        box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.1);
+        padding: 30px;
+        margin-bottom: 30px;
+        transition: transform 0.3s ease;
+    }
+    
+    .stat-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 20px;
+        margin-top: 20px;
+    }
+    
+    .stat-item {
+        background: white;
+        padding: 20px;
+        border-radius: 15px;
+        text-align: center;
+        border: 1px solid #f0f0f0;
+        transition: all 0.3s ease;
+    }
+    
+    .stat-item:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+    }
+    
+    .stat-value {
+        font-size: 2rem;
+        font-weight: 700;
+        color: var(--primary-color);
+        display: block;
+    }
+    
+    .stat-label {
+        color: #666;
+        font-size: 0.9rem;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+    
+    .danger-zone {
+        border: 2px dashed rgba(220, 53, 69, 0.3);
+        border-radius: 20px;
+        background: rgba(220, 53, 69, 0.02);
+        padding: 30px;
+    }
+    
+    .btn-nuclear {
+        background: linear-gradient(135deg, #ff416c, #ff4b2b);
+        color: white;
+        border: none;
+        padding: 15px 30px;
+        border-radius: 12px;
+        font-weight: 600;
+        letter-spacing: 0.5px;
+        box-shadow: 0 4px 15px rgba(255, 75, 43, 0.3);
+        transition: all 0.3s ease;
+    }
+    
+    .btn-nuclear:hover {
+        transform: scale(1.02);
+        box-shadow: 0 6px 20px rgba(255, 75, 43, 0.4);
+        color: white;
+    }
+
+    .shimmer {
+        animation: shimmer 2s infinite linear;
+        background: linear-gradient(to right, #f6f7f8 0%, #edeef1 20%, #f6f7f8 40%, #f6f7f8 100%);
+        background-size: 800px 104px;
+    }
+    
+    @keyframes shimmer {
+        0% { background-position: -468px 0; }
+        100% { background-position: 468px 0; }
+    }
+</style>
+
+<div class="dev-container">
+    <div class="d-flex align-items-center mb-4">
+        <div class="bg-warning-subtle p-3 rounded-circle me-3">
+            <i class="bi bi-tools text-warning fs-2"></i>
+        </div>
+        <div>
+            <h1 class="mb-0 fw-bold">Management de la Base de Données</h1>
+            <p class="text-muted mb-0">Outils d'administration pour le développement uniquement.</p>
+        </div>
+    </div>
+
+    <div class="glass-card">
+        <h3 class="mb-4 d-flex align-items-center">
+            <i class="bi bi-graph-up-arrow me-2 text-primary"></i> Statistiques Actuelles
+        </h3>
+        <div class="stat-grid">
+            <div class="stat-item">
+                <span class="stat-value">{{ stats.utilisateurs }}</span>
+                <span class="stat-label">Utilisateurs</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-value">{{ stats.clients }}</span>
+                <span class="stat-label">Clients</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-value">{{ stats.comptes }}</span>
+                <span class="stat-label">Comptes</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-value">{{ stats.operations }}</span>
+                <span class="stat-label">Opérations</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-value text-info">{{ stats.journaux }}</span>
+                <span class="stat-label">Logs Audit</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-value text-success">{{ stats.clotures }}</span>
+                <span class="stat-label">Clôtures</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="danger-zone">
+        <div class="row align-items-center">
+            <div class="col-lg-8">
+                <h3 class="text-danger mb-2"><i class="bi bi-exclamation-octagon-fill"></i> Zone Nucléaire</h3>
+                <p class="text-muted mb-0">
+                    La reconstruction supprime <strong>TOUTES</strong> les données, recrée les tables et réinitialise les utilisateurs admin par défaut. 
+                    Cette action est irréversible.
+                </p>
+            </div>
+            <div class="col-lg-4 text-lg-end mt-3 mt-lg-0">
+                <form action="{{ url_for('dev.rebuild_db') }}" method="POST" onsubmit="return confirm('Êtes-vous ABSOLUMENT sûr ? Toutes les données seront perdues définitivement.');">
+                    <button type="submit" class="btn btn-nuclear">
+                        <i class="bi bi-radioactive"></i> Reconstruire la Base
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="mt-5 text-center">
+        <a href="{{ url_for('dashboard') }}" class="text-decoration-none text-muted">
+            <i class="bi bi-arrow-left"></i> Retour au Dashboard Client
+        </a>
+    </div>
+</div>
+
+{% endblock %}
