@@ -1,0 +1,152 @@
+{% extends 'base.html' %}
+
+{% block title %}Audit Hash-Chain Visualization{% endblock %}
+
+{% block content %}
+<div style="max-width:1100px;margin:28px auto; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; color:#111827;">
+  <h2 style="text-align:center; font-weight:600; margin-bottom:6px;">Audit Hash-Chain Visualization</h2>
+  <p style="text-align:center; color:#6b7280; margin-top:0; margin-bottom:18px;">Genesis → Logs → Broken nodes → Daily Root checkpoint — read-only, banking-grade integrity view</p>
+
+  <div style="background:#ffffff; border:1px solid #e6e8eb; border-radius:8px; padding:16px;">
+    <div style="overflow:auto; padding-bottom:8px;">
+      <div class="chain-row">
+        {% set entries = data.entries %}
+        {% set n = entries|length %}
+        {% if n == 0 %}
+          <div style="color:#6b7280; font-style:italic;">No entries available</div>
+        {% else %}
+          {# Use the server-provided summary when available (computes representative indices server-side); fallback to computed minimal summary #}
+          {% if summary is defined %}
+            {% set s = summary %}
+          {% else %}
+            {% set s = {} %}
+            {% set s = s.update({'n': n}) or s %}
+            {% set s = s.update({'entries': entries}) or s %}
+            {% set s = s.update({'genesis': entries[0]}) or s %}
+            {% set s = s.update({'daily': entries[n-1]}) or s %}
+            {% set logs_idx = None %}
+            {% for i in range(1, n-1) %}
+              {% if entries[i]['status'] == 'ok' and logs_idx is none %}
+                {% set logs_idx = i %}
+              {% endif %}
+            {% endfor %}
+            {% set s = s.update({'logs_idx': logs_idx}) or s %}
+            {% set broken_idxs = [] %}
+            {% for i in range(0, n) %}
+              {% if entries[i]['status'] != 'ok' %}
+                {% set broken_idxs = broken_idxs + [i] %}
+              {% endif %}
+            {% endfor %}
+            {% set s = s.update({'broken_first': (broken_idxs[0] if broken_idxs|length>0 else None)}) or s %}
+            {% set s = s.update({'broken_count': broken_idxs|length}) or s %}
+          {% endif %}
+
+          {% set segments = s.segments %}
+          {% set preview_limit = 5 %}
+          {% set broken_shown = 0 %}
+          {% set broken_more_rendered = false %}
+
+          {% for seg in segments %}
+            {% if seg.type == 'genesis' %}
+              {% set g = seg.entry %}
+              <div class="minimal-node genesis good" {% if g.id %}data-id="{{ g.id }}"{% endif %} title="Genesis Hash">
+                <div class="title">Genesis Hash</div>
+                <div class="meta">{{ g.hash_actuel[:8] if g.hash_actuel else '' }}</div>
+              </div>
+
+            {% elif seg.type == 'first' %}
+              {% set f = seg.entry %}
+              <div class="minimal-node good" data-id="{{ f.id }}" title="#{{ f.id }} - First">
+                <div class="title">Log #{{ f.id }}</div>
+                <div class="meta">{{ f.hash_actuel[:8] if f.hash_actuel else '' }}</div>
+              </div>
+
+            {% elif seg.type == 'gap' %}
+              <div style="min-width:120px;padding:10px;background:#fff;border-radius:6px;text-align:center;font-style:italic;color:#6b7280">… {{ seg.count }} entrées …</div>
+
+            {% elif seg.type == 'broken' %}
+              {% if broken_shown < preview_limit %}
+                <div class="minimal-node broken small" data-id="{{ seg.entry.id }}" title="#{{ seg.entry.id }} - Broken">
+                  <div class="title">#{{ seg.entry.id }}</div>
+                  <div class="meta">{{ seg.entry.hash_actuel[:8] if seg.entry.hash_actuel else '' }}</div>
+                </div>
+                {% set broken_shown = broken_shown + 1 %}
+              {% else %}
+                {% if not broken_more_rendered %}
+                  <div style="min-width:120px;padding:8px;background:#fff;border-radius:6px;text-align:center;font-style:italic;color:#6b7280">… {{ s.broken_count - preview_limit }} de plus …</div>
+                  {% set broken_more_rendered = true %}
+                {% endif %}
+              {% endif %}
+
+            {% elif seg.type == 'daily' %}
+              <div class="minimal-node good" data-id="{{ seg.entry.id }}" title="#{{ seg.entry.id }} - Daily Root">
+                <div class="title">Daily Root</div>
+                <div class="meta">{{ seg.entry.hash_actuel[:8] if seg.entry.hash_actuel else '' }}</div>
+              </div>
+            {% endif %}
+
+            {# put arrow between segments except after last one #}
+            {% if not loop.last %}
+              <div class="arrow">→</div>
+            {% endif %}
+          {% endfor %}
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <p style="color:#6b7280; font-size:13px; margin-top:12px; text-align:center;">Read-only view intended for monitoring. Forensic export is available in admin tools.</p>
+
+  <div id="detail" class="mt-3" style="display:none; max-width:1100px; margin:12px auto;">
+    <div class="card">
+      <div class="card-body">
+        <h5>Détail entrée <span id="detail-id"></span></h5>
+        <pre id="detail-json" style="background:#f8fafc;padding:12px;border-radius:6px;border:1px solid #e6e6e6;"></pre>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+.chain-row{ display:flex; align-items:flex-end; gap:12px; }
+.minimal-node{ min-width:84px; min-height:38px; background:#fafafa; border-radius:6px; padding:6px 10px; border:1px solid #eef2f6; display:flex; flex-direction:column; justify-content:center; }
+/* Genesis node styling: slightly bolder left accent but still minimal */
+.minimal-node.genesis{ border:2px solid #2563eb; background:#eff6ff; min-width:96px; min-height:46px; padding:8px 10px }
+.minimal-node.good{ border:1.5px solid #5395fe; background:#f0f5ff; min-width:72px; min-height:34px; padding:6px 8px }
+.minimal-node.broken{ border:2px solid #ef4444; background:#fff5f5; min-width:160px; min-height:72px; padding:12px 14px; box-shadow:0 6px 14px rgba(239,68,68,0.06) }
+/* smaller broken preview nodes */
+.minimal-node.broken.small{ min-width:72px; min-height:44px; padding:8px 10px; box-shadow:none; }
+.minimal-node .title{ font-size:13px; font-weight:600; color:#111827 }
+.minimal-node .meta{ font-size:12px; color:#6b7280; margin-top:6px }
+.minimal-node .warning{ color:#ef4444; margin-top:8px; font-size:12px }
+.arrow{ color:#9ca3af; font-weight:600; font-size:14px }
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('.minimal-node').forEach(node => {
+    node.addEventListener('click', () => {
+      const id = node.getAttribute('data-id');
+      if (!id) return; // genesis may be virtual/non-clickable
+
+      // announce and show progress (delayed to avoid flicker)
+      if (window.announceProgress) announceProgress('Chargement des détails...');
+      fetchWithProgress(`{{ url_for('audit.verifier_chain_detail', id=0) }}`.replace('/0', '/' + id))
+        .then(r => r.json())
+        .then(d => {
+          document.getElementById('detail').style.display = 'block';
+          document.getElementById('detail-id').textContent = '#' + d.id;
+          document.getElementById('detail-json').textContent = JSON.stringify(d, null, 2);
+          // scroll to detail
+          document.getElementById('detail').scrollIntoView({ behavior: 'smooth', block: 'center' });
+          if (window.announceProgress) announceProgress('Détails chargés');
+        })
+        .finally(() => {
+          // clear live region after short delay
+          setTimeout(() => { if (window.announceProgress) announceProgress(''); }, 1200);
+        });
+    });
+  });
+});
+</script>
+{% endblock %}

@@ -13,10 +13,20 @@
                     <div>
                         <label for="nom" class="form-label">Nom *</label>
                         <input type="text" class="form-control" id="nom" name="nom" required>
+                        {% if errors and errors.get('nom') %}
+                            <div class="invalid-feedback">{{ errors.get('nom') }}</div>
+                        {% else %}
+                            <div class="invalid-feedback" style="display:none;"></div>
+                        {% endif %}
                     </div>
                     <div>
                         <label for="prenom" class="form-label">Prénom *</label>
                         <input type="text" class="form-control" id="prenom" name="prenom" required>
+                        {% if errors and errors.get('prenom') %}
+                            <div class="invalid-feedback">{{ errors.get('prenom') }}</div>
+                        {% else %}
+                            <div class="invalid-feedback" style="display:none;"></div>
+                        {% endif %}
                     </div>
                 </div>
 
@@ -24,21 +34,41 @@
                     <div>
                         <label for="cin" class="form-label">CIN (Carte d'Identité) *</label>
                         <input type="text" class="form-control" id="cin" name="cin" required>
+                        {% if errors and errors.get('cin') %}
+                            <div class="invalid-feedback">{{ errors.get('cin') }}</div>
+                        {% else %}
+                            <div class="invalid-feedback" style="display:none;"></div>
+                        {% endif %}
                     </div>
                     <div>
                         <label for="telephone" class="form-label">Téléphone *</label>
                         <input type="tel" class="form-control" id="telephone" name="telephone" required>
+                        {% if errors and errors.get('telephone') %}
+                            <div class="invalid-feedback">{{ errors.get('telephone') }}</div>
+                        {% else %}
+                            <div class="invalid-feedback" style="display:none;"></div>
+                        {% endif %}
                     </div>
                 </div>
 
                 <div class="mb-3">
                     <label for="email" class="form-label">Email</label>
                     <input type="email" class="form-control" id="email" name="email">
+                    {% if errors and errors.get('email') %}
+                        <div class="invalid-feedback">{{ errors.get('email') }}</div>
+                    {% else %}
+                        <div class="invalid-feedback" style="display:none;"></div>
+                    {% endif %}
                 </div>
 
                 <div class="mb-3">
                     <label for="adresse" class="form-label">Adresse Complète</label>
                     <textarea class="form-control" id="adresse" name="adresse" rows="3"></textarea>
+                    {% if errors and errors.get('adresse') %}
+                        <div class="invalid-feedback">{{ errors.get('adresse') }}</div>
+                    {% else %}
+                        <div class="invalid-feedback" style="display:none;"></div>
+                    {% endif %}
                 </div>
 
                 <div style="display: flex; justify-content: space-between; margin-top: 32px;">

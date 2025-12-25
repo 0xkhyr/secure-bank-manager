@@ -1,0 +1,111 @@
+{% extends 'base.html' %}
+
+{% block title %}Approbations en Attente - SecureBank{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1><i class="bi bi-shield-lock text-primary"></i> Validation Maker-Checker</h1>
+    <span class="badge bg-primary rounded-pill px-3">{{ demandes|length }} en attente</span>
+</div>
+
+<div class="table-responsive shadow-sm">
+    <table class="table table-hover align-middle mb-0 text-nowrap">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Type d'Opération</th>
+                <th>Soumis par</th>
+                <th>Date</th>
+                <th>Détails</th>
+                <th class="text-end">Actions</th>
+            </tr>
+        </thead>
+                <tbody>
+                    {% for demande in demandes %}
+                    <tr>
+                        <td class="px-4 text-muted small">#{{ demande.id }}</td>
+                        <td>
+                            <span class="badge bg-warning-subtle text-warning border border-warning-subtle">
+                                {{ demande.type_operation }}
+                            </span>
+                        </td>
+                        <td>
+                            <span class="fw-bold text-dark"><a href="{{ url_for('users.view', id=demande.cree_par.id) }}">{{ demande.cree_par.nom_utilisateur }}</a></span>
+                        </td>
+                        <td class="small text-muted">{{ demande.cree_le.strftime('%d/%m/%Y %H:%M') }}</td>
+                        <td>
+                            <button type="button" class="btn btn-sm btn-outline-info" onclick="toggleDetails('details-{{ demande.id }}')">
+                                Voir Payload
+                            </button>
+                        </td>
+                        <td class="text-end px-4">
+                            <div class="d-flex justify-content-end gap-2">
+                                <button type="button" class="btn btn-sm btn-success px-3 btn-decision" 
+                                    data-id="{{ demande.id }}" data-action="approve">
+                                    <i class="bi bi-check-lg"></i> Approuver
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-danger btn-danger-soft px-3 btn-decision"
+                                    data-id="{{ demande.id }}" data-action="reject">
+                                    <i class="bi bi-x-lg"></i> Rejeter
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr class="collapse" id="details-{{ demande.id }}">
+                        <td colspan="6" class="bg-light-subtle px-4 py-3">
+                            <div class="p-3 bg-white rounded border small">
+                                <pre class="mb-0"><code>{{ demande.payload | tojson(indent=2) }}</code></pre>
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="6" class="text-center py-5 text-muted">
+                            <i class="bi bi-check-all fs-1 opacity-25 d-block mb-3"></i>
+                            Aucune opération en attente de validation.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% include 'components/management_modal.html' %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+function toggleDetails(id) {
+    const el = document.getElementById(id);
+    if (el) {
+        el.classList.toggle('show');
+    }
+}
+
+function confirmDecision(id, action) {
+    const isApprove = action === 'approve';
+    const url = "{{ url_for('checker.decider', id=0) }}".replace('/0', '/' + id);
+    
+    showManagementModal({
+        title: isApprove ? "Approuver l'opération #" + id : "Rejeter l'opération #" + id,
+        action: url,
+        submitText: isApprove ? "Confirmer l'approbation" : "Confirmer le rejet",
+        submitStyle: isApprove ? "background: #22c55e; border-color: #22c55e; color: white;" : "background: #dc2626; border-color: #dc2626; color: white;",
+        extraField: { name: "action", value: action },
+        reasons: isApprove ? 
+            ["Validation manuelle standard", "Vérification effectuée", "Décision hiérarchique", "Dossier complet"] : 
+            ["Données invalides", "Suspicion de fraude", "Solde insuffisant", "Client introuvable", "Document manquant"]
+    });
+}
+
+// Initialisation des écouteurs d'événements
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.btn-decision').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const id = this.getAttribute('data-id');
+            const action = this.getAttribute('data-action');
+            confirmDecision(id, action);
+        });
+    });
+});
+</script>
+{% endblock %}

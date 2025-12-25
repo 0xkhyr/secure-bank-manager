@@ -12,7 +12,7 @@ from flask import (
 )
 from src.auth import login_required, permission_required
 from src.db import obtenir_session
-from src.models import Client, Compte
+from src.models import Client, Compte, StatutClient, StatutCompte
 from src.audit_logger import log_action
 
 clients_bp = Blueprint('clients', __name__, url_prefix='/clients')
@@ -24,7 +24,6 @@ def index():
     session = obtenir_session()
     clients = session.query(Client).all()
     nb_clients = len(clients)
-    session.close()
     
     # Logger la consultation de la liste
     log_action(g.user.id, "CONSULTATION_LISTE_CLIENTS", "Clients",
@@ -64,18 +63,16 @@ def create():
             session.add(nouveau_client)
             session.commit()
             
-            # Récupérer l'ID avant de fermer la session
+            # Récupérer l'ID
             client_id = nouveau_client.id
             
             # Audit
             log_action(g.user.id, "CREATION_CLIENT", f"Client {client_id}", 
                        {"nom": nom, "prenom": prenom, "cin": cin})
             
-            session.close()
             flash('Client créé avec succès !', 'success')
             return redirect(url_for('clients.view', id=client_id))
 
-        session.close()
         flash(error, 'danger')
 
     return render_template('clients/create.html')
@@ -88,17 +85,82 @@ def view(id):
     client = session.query(Client).filter_by(id=id).first()
     
     if client is None:
-        session.close()
         flash('Client introuvable.', 'danger')
         return redirect(url_for('clients.index'))
         
     # Charger les comptes du client
     comptes = session.query(Compte).filter_by(client_id=id).all()
     nb_comptes = len(comptes)
-    session.close()
     
     # Logger la consultation du client
     log_action(g.user.id, "CONSULTATION_CLIENT", f"Client {id}",
                {"client_id": id, "cin": client.cin, "nb_comptes": nb_comptes})
     
     return render_template('clients/view.html', client=client, comptes=comptes)
+
+@clients_bp.route('/<int:id>/desactiver', methods=('POST',))
+@permission_required('clients.delete') # Using delete permission for deactivation
+def deactivate(id):
+    """
+    Désactive un client (Soft Delete / Archive).
+    Vérifie que les comptes sont fermés.
+    """
+    session = obtenir_session()
+    client = session.query(Client).filter_by(id=id).first()
+    
+    if client is None:
+        flash('Client introuvable.', 'danger')
+        return redirect(url_for('clients.index'))
+
+    # Vérifier si tous les comptes sont fermés
+    comptes_ouverts = [c for c in client.comptes if c.statut != StatutCompte.FERME]
+    
+    if comptes_ouverts:
+        flash(f'Impossible de désactiver le client : il possède encore {len(comptes_ouverts)} comptes actifs.', 'danger')
+        return redirect(url_for('clients.view', id=id))
+
+    try:
+        raison = request.form.get('raison', 'Désactivation demandée')
+        nouveau_statut_str = request.form.get('statut', 'inactif').upper()
+        
+        try:
+            nouveau_statut = StatutClient[nouveau_statut_str]
+        except KeyError:
+            nouveau_statut = StatutClient.INACTIF
+
+        client.statut = nouveau_statut
+        
+        log_action(g.user.id, "DESACTIVATION_CLIENT", f"Client {id}", 
+                   {"nouveau_statut": nouveau_statut.value, "raison": raison})
+        
+        session.commit()
+        flash(f'Client passé au statut {nouveau_statut.value} avec succès.', 'success')
+    except Exception as e:
+        session.rollback()
+        flash(f'Erreur : {e}', 'danger')
+        
+    return redirect(url_for('clients.view', id=id))
+
+
+@clients_bp.route('/<int:id>/reactiver', methods=('POST',))
+@permission_required('clients.delete')
+def reactivate(id):
+    """Réactive un client désactivé."""
+    session = obtenir_session()
+    client = session.query(Client).filter_by(id=id).first()
+    
+    if client is None:
+        flash('Client introuvable.', 'danger')
+        return redirect(url_for('clients.index'))
+
+    try:
+        raison = request.form.get('raison', 'Réactivation administrative')
+        client.statut = StatutClient.ACTIF
+        log_action(g.user.id, "REACTIVATION_CLIENT", f"Client {id}", {"raison": raison})
+        session.commit()
+        flash('Client réactivé avec succès.', 'success')
+    except Exception as e:
+        session.rollback()
+        flash(f'Erreur : {e}', 'danger')
+        
+    return redirect(url_for('clients.view', id=id))

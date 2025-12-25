@@ -5,6 +5,35 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}SecureBank{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/nprogress/0.2.0/nprogress.min.css" />
+    <style>
+        #nprogress .bar {
+            background: #0d6efd !important;
+            height: 3px !important;
+            z-index: 99999 !important;
+        }
+
+        /* Bootstrap Primary Blue */
+        #nprogress .peg {
+            box-shadow: 0 0 10px #0d6efd, 0 0 5px #0d6efd !important;
+        }
+
+        #nprogress .spinner-icon {
+            border-top-color: #0d6efd !important;
+            border-left-color: #0d6efd !important;
+        }
+    </style>
+
+    <!-- Alpine.js (local vendor, run scripts/install_vendor_assets.sh to populate) -->
+    <script defer src="{{ url_for('static', filename='vendor/alpine/alpine.min.js') }}"></script>
+
+    <!-- NProgress (local vendor) -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='vendor/nprogress/nprogress.min.css') }}" />
+    <script src="{{ url_for('static', filename='vendor/nprogress/nprogress.min.js') }}"></script>
+    <!-- NProgress helper (delayed start + fetch wrapper) -->
+    <script src="{{ url_for('static', filename='js/nprogress-shim.js') }}"></script>
 </head>
 <body>
     <header class="header">
@@ -24,6 +53,7 @@
                     <a href="{{ url_for('clients.index') }}" class="{{ 'active' if request.path.startswith(url_for('clients.index')) else '' }}">Clients</a>
                     {% if g.user.role.value in ['admin', 'superadmin'] %}
                         <a href="{{ url_for('users.index') }}" class="{{ 'active' if request.path.startswith(url_for('users.index')) else '' }}">Utilisateurs</a>
+                        <a href="{{ url_for('checker.index') }}" class="{{ 'active' if request.path.startswith(url_for('checker.index')) else '' }}{% if pending_approbations_count and pending_approbations_count > 0 %} has-badge{% endif %}">Approbations{% if pending_approbations_count and pending_approbations_count > 0 %} <span class="badge-pending" aria-hidden="true">{{ pending_approbations_count }}</span><span class="sr-only">{{ pending_approbations_count }} en attente</span>{% endif %}</a>
                         <a href="{{ url_for('audit.index') }}" class="{{ 'active' if request.path.startswith(url_for('audit.index')) else '' }}">Audit</a>
                     {% endif %}
                 </div>
@@ -79,6 +109,7 @@
                         <a href="{{ url_for('clients.index') }}">Clients</a>
                         {% if g.user.role.value in ['admin', 'superadmin'] %}
                             <a href="{{ url_for('users.index') }}">Utilisateurs</a>
+                            <a href="{{ url_for('checker.index') }}" class="{% if pending_approbations_count and pending_approbations_count > 0 %}has-badge{% endif %}">Approbations{% if pending_approbations_count and pending_approbations_count > 0 %} <span class="badge-pending small" aria-hidden="true">{{ pending_approbations_count }}</span><span class="sr-only">{{ pending_approbations_count }} en attente</span>{% endif %}</a>
                             <a href="{{ url_for('audit.index') }}">Audit</a>
                         {% endif %}
                     </div>
@@ -100,7 +131,80 @@
             {% endif %}
         </div>
     </header>
+
+    <!-- ARIA live region for longer operations (screen readers) -->
+    <div id="nprogress-announce" class="sr-only" role="status" aria-live="polite"></div>
+
     <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            // NProgress Configuration
+            NProgress.configure({ showSpinner: false });
+            // Helper to announce long operations for screen readers
+            window.announceProgress = (msg) => {
+                const el = document.getElementById('nprogress-announce');
+                if (!el) return;
+                el.textContent = msg || '';
+                setTimeout(() => { el.textContent = ''; }, 2000);
+            };
+
+            // Page Transition Loading
+            window.addEventListener('beforeunload', function () {
+                NProgress.start();
+            });
+
+            // Also trigger on link clicks for immediate feedback
+            document.addEventListener('click', (e) => {
+                const link = e.target.closest('a');
+                if (link &&
+                    !link.target &&
+                    !link.hasAttribute('download') &&
+                    link.href &&
+                    link.href.startsWith(window.location.origin) &&
+                    !link.href.includes('#') &&
+                    !e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey
+                ) {
+                    NProgress.start();
+                }
+            });
+
+            window.addEventListener('load', function () {
+                NProgress.done();
+            });
+
+            // Global Button Loading
+            document.addEventListener('submit', function (e) {
+                const form = e.target;
+                const submitBtn = form.querySelector('[type="submit"], button:not([type="button"]):not([type="reset"])');
+
+                if (submitBtn && !submitBtn.classList.contains('no-loading')) {
+                    if (submitBtn.disabled) {
+                        e.preventDefault();
+                        return;
+                    }
+
+                    submitBtn.dataset.originalContent = submitBtn.innerHTML;
+                    const loadingText = submitBtn.dataset.loadingText || 'Chargement...';
+                    submitBtn.disabled = true;
+                    // Add spinner if bootstrap is available or use custom
+                    submitBtn.innerHTML = `<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>${loadingText}`;
+                }
+            });
+
+            // Restore button state (bfcache)
+            window.addEventListener('pageshow', function (event) {
+                if (event.persisted) {
+                    const submitBtns = document.querySelectorAll('[type="submit"][disabled], button[disabled]');
+                    submitBtns.forEach(btn => {
+                        if (btn.dataset.originalContent) {
+                            btn.innerHTML = btn.dataset.originalContent;
+                            btn.disabled = false;
+                        }
+                    });
+                    NProgress.done();
+                }
+            });
+        });
+
     function toggleMobileMenu() {
         const mobileNav = document.querySelector('.mobile-nav');
         const overlay = document.querySelector('.mobile-overlay');
@@ -136,17 +240,33 @@
 
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <div class="container">
-        <!-- Messages Flash -->
+    <!-- Messages Flash Fixés -->
+    <div class="flash-container">
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 {% for category, message in messages %}
-                    <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
-                        {{ message }}
-                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    <div class="alert alert-{{ category }}" role="alert">
+                        <span>{{ message }}</span>
+                        <button type="button" class="btn-close" onclick="this.parentElement.style.opacity='0'; setTimeout(() => this.parentElement.remove(), 300)" aria-label="Close">✕</button>
                     </div>
                 {% endfor %}
             {% endif %}
         {% endwith %}
+    </div>
+
+    <script>
+    // Auto-dismiss alerts after 5 seconds
+    document.addEventListener('DOMContentLoaded', () => {
+        const alerts = document.querySelectorAll('.flash-container .alert');
+        alerts.forEach(alert => {
+            setTimeout(() => {
+                alert.style.opacity = '0';
+                alert.style.transform = 'translateY(-10px)';
+                setTimeout(() => alert.remove(), 300);
+            }, 5000);
+        });
+    });
+    </script>
 
         <!-- Contenu Principal -->
         {% block content %}{% endblock %}
@@ -170,5 +290,6 @@
         });
     })();
     </script>
+    {% block scripts %}{% endblock %}
 </body>
 </html>

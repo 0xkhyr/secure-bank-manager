@@ -50,7 +50,13 @@
         <div style="font-size: 13px; color: var(--text-secondary); margin-bottom: 20px;">
             Aucune opération n'est possible sur ce compte. Vous pouvez le réouvrir pour autoriser les transactions.
         </div>
-        <button type="button" class="btn btn-primary" style="background: #1e8e3e; border-color: #1e8e3e;" onclick="showModal('reopen')">Réouvrir le Compte</button>
+        {% if compte.client.statut.value == 'actif' %}
+            <button type="button" class="btn btn-primary" style="background: #1e8e3e; border-color: #1e8e3e;" onclick="showModal('reopen')">Réouvrir le Compte</button>
+        {% else %}
+            <p style="font-size: 13px; color: var(--danger); font-weight: 500;">
+                ⚠ Réouverture impossible : le titulaire est {{ compte.client.statut.value }}
+            </p>
+        {% endif %}
     </div>
     
     {% else %}
@@ -60,76 +66,29 @@
     {% endif %}
 </div>
 
-<!-- Modal Component -->
-<div id="accountModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;" onclick="hideModal()">
-    <div style="background: var(--surface); border-radius: 8px; padding: 24px; max-width: 500px; width: 90%;" onclick="event.stopPropagation()">
-        <h3 id="modalTitle" style="font-size: 18px; font-weight: 500; margin-bottom: 16px;"></h3>
-        <form id="modalForm" method="post" action="">
-            <div style="margin-bottom: 20px;">
-                <label for="raison" style="display: block; font-size: 14px; font-weight: 500; margin-bottom: 8px;">Raison *</label>
-                <select id="raison" name="raison" required style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 4px; font-size: 14px;">
-                </select>
-            </div>
-            <div style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 24px;">
-                <button type="button" class="btn" onclick="hideModal()">Annuler</button>
-                <button id="modalSubmit" type="submit" class="btn btn-primary"></button>
-            </div>
-        </form>
-    </div>
-</div>
+<!-- Reusable Modal -->
+{% include 'components/management_modal.html' %}
 
 <script>
-const modalConfig = {
+const mgmtConfigs = {
     close: {
         title: 'Clôturer le compte',
         action: '{{ url_for("accounts.close", id=compte.id) }}',
         submitText: 'Confirmer la clôture',
         submitStyle: 'background: #d93025; border-color: #d93025; color: white;',
-        reasons: [
-            'Demande client',
-            'Inactivité',
-            'Fraude/Suspicion',
-            'Conformité réglementaire',
-            'Décision administrative',
-            'Décès du titulaire'
-        ]
+        reasons: ['Demande client', 'Inactivité', 'Fraude/Suspicion', 'Conformité réglementaire', 'Décision administrative', 'Décès du titulaire']
     },
     reopen: {
         title: 'Réouvrir le compte',
         action: '{{ url_for("accounts.reopen", id=compte.id) }}',
         submitText: 'Confirmer la réouverture',
         submitStyle: 'background: #1e8e3e; border-color: #1e8e3e; color: white;',
-        reasons: [
-            'Demande client',
-            'Correction d\'erreur',
-            'Révision administrative',
-            'Résolution de conformité',
-            'Réactivation après inactivité'
-        ]
+        reasons: ['Demande client', 'Correction d\'erreur', 'Révision administrative', 'Résolution de conformité', 'Réactivation après inactivité']
     }
 };
 
 function showModal(type) {
-    const config = modalConfig[type];
-    const modal = document.getElementById('accountModal');
-    const form = document.getElementById('modalForm');
-    const select = document.getElementById('raison');
-    const submit = document.getElementById('modalSubmit');
-    
-    document.getElementById('modalTitle').textContent = config.title;
-    form.action = config.action;
-    submit.textContent = config.submitText;
-    submit.style.cssText = config.submitStyle;
-    
-    select.innerHTML = config.reasons.map(r => `<option value="${r}">${r}</option>`).join('');
-    
-    modal.style.display = 'flex';
-    document.body.style.overflow = 'hidden';
-}
-
-function hideModal() {
-    document.getElementById('accountModal').style.display = 'none';
-    document.body.style.overflow = 'auto';
+    showManagementModal(mgmtConfigs[type]);
 }
 </script>
 

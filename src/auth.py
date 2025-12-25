@@ -18,7 +18,7 @@ from src.config import Config
 from datetime import datetime, timedelta
 
 # Generic message used to avoid username enumeration
-GENERIC_LOGIN_ERROR = "Nom d'utilisateur ou mot de passe invalide."
+GENERIC_LOGIN_ERROR = "Échec de l’authentification. Veuillez contacter un administrateur si nécessaire."
 
 # Création du Blueprint pour l'authentification
 auth_bp = Blueprint('auth', __name__, url_prefix='/auth')
@@ -47,6 +47,8 @@ def admin_required(view):
             return redirect(url_for('auth.login'))
         
         if g.user.role not in [RoleUtilisateur.ADMIN, RoleUtilisateur.SUPERADMIN]:
+            from src.audit_logger import log_action
+            log_action(g.user.id, "ACCES_REFUSE", "Admin required", {"path": request.path})
             flash("Accès refusé : Vous devez être administrateur.", "danger")
             return redirect(url_for('home'))
             
@@ -65,6 +67,8 @@ def operateur_required(view):
         
         # Les admins et superadmins ont aussi accès aux fonctions opérateurs
         if g.user.role not in [RoleUtilisateur.OPERATEUR, RoleUtilisateur.ADMIN, RoleUtilisateur.SUPERADMIN]:
+            from src.audit_logger import log_action
+            log_action(g.user.id, "ACCES_REFUSE", "Operateur required", {"path": request.path})
             flash("Accès refusé.", "danger")
             return redirect(url_for('home'))
             
@@ -168,6 +172,9 @@ def login():
     Route de connexion.
     Gère l'affichage du formulaire et le traitement de la soumission.
     """
+    # Si déjà connecté, redirection vers l'accueil
+    if g.user:
+        return redirect(url_for('home'))
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
@@ -241,7 +248,6 @@ def login():
 
             # Si une erreur a été détectée plus haut, ne pas procéder à la connexion
             if error:
-                db_session.close()
                 flash(error, 'danger')
             else:
                 # Mise à jour des infos de connexion
@@ -260,15 +266,12 @@ def login():
                 from src.audit_logger import log_action
                 log_action(user_id_local, "CONNEXION", "Système", {"nom_utilisateur": username, "user_id": user_id_local})
 
-                db_session.close()
-
                 # Set session to mark user as logged in
                 session['user_id'] = user_id_local
                 session['last_activity'] = datetime.utcnow().isoformat()
                 flash('Connexion réussie !', 'success')
                 return redirect(url_for('home'))
 
-        db_session.close()
         if error:
             # Avoid flashing the exact same message multiple times in the session
             existing = session.get('_flashes') or []

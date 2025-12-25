@@ -7,43 +7,55 @@
     <h1 style="font-size: 24px; font-weight: 400; margin-bottom: 24px;">Créer un Utilisateur</h1>
 
     <div class="card">
-        <form method="post">
-            <div class="form-group">
-                <label for="nom_utilisateur">Nom d'utilisateur</label>
-                <input type="text" id="nom_utilisateur" name="nom_utilisateur" required
-                       placeholder="Ex: jean.dupont" autofocus>
-                <small style="color: var(--text-secondary);">Le nom d'utilisateur doit être unique</small>
-            </div>
+        <div class="card-body">
+            <form method="post">
+                <div class="mb-3">
+                    <label for="nom_utilisateur" class="form-label">Nom d'utilisateur</label>
+                    <input type="text" id="nom_utilisateur" name="nom_utilisateur" required
+                           class="form-control" placeholder="Ex: jean.dupont" autofocus>
+                    <small class="form-text text-muted">Le nom d'utilisateur doit être unique</small>
+                    {% if errors and errors.get('nom_utilisateur') %}
+                        <div class="invalid-feedback">{{ errors.get('nom_utilisateur') }}</div>
+                    {% else %}
+                        <div class="invalid-feedback" style="display:none;"></div>
+                    {% endif %}
+                </div>
 
-            <div class="form-group">
-                <label for="mot_de_passe">Mot de passe</label>
-                <input type="password" id="mot_de_passe" name="mot_de_passe" required
-                       placeholder="Au moins 6 caractères">
-                <small style="color: var(--text-secondary);">Minimum 6 caractères</small>
-            </div>
+                <div class="mb-3">
+                    <label for="mot_de_passe" class="form-label">Mot de passe</label>
+                    <input type="password" id="mot_de_passe" name="mot_de_passe" required
+                           class="form-control" placeholder="Au moins 6 caractères">
+                    <small class="form-text text-muted">Minimum 6 caractères</small>
+                    {% if errors and errors.get('mot_de_passe') %}
+                        <div class="invalid-feedback">{{ errors.get('mot_de_passe') }}</div>
+                    {% else %}
+                        <div class="invalid-feedback" style="display:none;"></div>
+                    {% endif %}
+                </div>
 
-            <div class="form-group">
-                <label for="role">Rôle</label>
-                <select id="role" name="role" required>
-                    {% for role in manageable_roles %}
-                        <option value="{{ role.value }}">
-                            {% if role.value == 'superadmin' %}
-                                SUPERADMIN - Accès total (peut gérer tous les utilisateurs)
-                            {% elif role.value == 'admin' %}
-                                ADMIN - Peut gérer les opérateurs uniquement
-                            {% else %}
-                                OPÉRATEUR - Opérations bancaires uniquement
-                            {% endif %}
-                        </option>
-                    {% endfor %}
-                </select>
-            </div>
+                <div class="mb-3">
+                    <label for="role" class="form-label">Rôle</label>
+                    <select id="role" name="role" required class="form-control">
+                        {% for role in manageable_roles %}
+                            <option value="{{ role.value }}">
+                                {% if role.value == 'superadmin' %}
+                                    SUPERADMIN - Accès total (peut gérer tous les utilisateurs)
+                                {% elif role.value == 'admin' %}
+                                    ADMIN - Peut gérer les opérateurs uniquement
+                                {% else %}
+                                    OPÉRATEUR - Opérations bancaires uniquement
+                                {% endif %}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
 
-            <div class="form-actions">
-                <button type="submit" class="btn btn-primary">Créer l'utilisateur</button>
-                <a href="{{ url_for('users.index') }}" class="btn">Annuler</a>
-            </div>
-        </form>
+                <div class="form-actions" style="display:flex; gap:12px;">
+                    <button type="submit" class="btn btn-primary">Créer l'utilisateur</button>
+                    <a href="{{ url_for('users.index') }}" class="btn">Annuler</a>
+                </div>
+            </form>
+        </div>
     </div>
 </div>
 {% endblock %}

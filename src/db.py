@@ -85,6 +85,12 @@ def initialiser_base_donnees():
             print("✓ Tables déjà existantes")
         else:
             raise e
+
+    # Apply lightweight runtime schema updates (safe for SQLite dev environments)
+    try:
+        apply_schema_updates()
+    except Exception as e:
+        print(f"⚠️ Erreur lors de l'application des mises à jour du schéma : {e}")
     
     # Ajouter les utilisateurs par défaut
     creer_utilisateurs_defaut()
@@ -161,6 +167,32 @@ def reinitialiser_base_donnees():
     print("✓ Tables supprimées")
     initialiser_base_donnees()
     print("✓ Base de données réinitialisée")
+
+
+def apply_schema_updates():
+    """
+    Apply minimal, safe schema updates for development environments.
+    Currently adds nullable `valide_par_id` column to `operations` if missing.
+    This avoids runtime OperationalError when code expects the column to exist.
+
+    NOTE: For production environments, prefer running an explicit Alembic migration
+    rather than relying on runtime ALTER TABLE operations.
+    """
+    from sqlalchemy import text
+    with engine.connect() as conn:
+        # Check columns in 'operations'
+        res = conn.execute(text("PRAGMA table_info('operations')"))
+        cols = [row[1] for row in res.fetchall()]
+
+        if 'valide_par_id' not in cols:
+            print("→ Ajout de la colonne 'valide_par_id' à la table 'operations' (dev-mode ALTER TABLE)")
+            # SQLite supports ADD COLUMN with a default/nullable; keep it simple and nullable
+            conn.execute(text('ALTER TABLE operations ADD COLUMN valide_par_id INTEGER'))
+            # Note: We intentionally do not add a foreign key constraint here to avoid complex
+            # migrations in SQLite dev environments. Production: use Alembic migration to add FK.
+        else:
+            # Nothing to do
+            pass
 
 
 def verifier_connexion():

@@ -11,10 +11,11 @@ from flask import (
 )
 from src.auth import login_required, permission_required
 from src.db import obtenir_session
-from src.models import Compte, Operation, TypeOperation
+from src.models import Compte, Operation, TypeOperation, StatutCompte
 from src.config import Config
 from src.audit_logger import log_action
 from decimal import Decimal
+from datetime import datetime
 
 operations_bp = Blueprint('operations', __name__, url_prefix='/operations')
 
@@ -29,7 +30,6 @@ def depot(compte_id):
     compte = session.query(Compte).filter_by(id=compte_id).first()
     
     if compte is None:
-        session.close()
         flash('Compte introuvable.', 'danger')
         return redirect(url_for('clients.index'))
     
@@ -37,8 +37,15 @@ def depot(compte_id):
     if compte.statut.value != 'actif':
         log_action(g.user.id, "ECHEC_DEPOT", f"Compte {compte.numero_compte}",
                    {"raison": "compte_inactif", "statut": compte.statut.value})
-        session.close()
         flash('Opération impossible : le compte n\'est pas actif.', 'danger')
+        return redirect(url_for('accounts.view', id=compte_id))
+
+    # VERIFICATION: Le client doit être actif pour effectuer un dépôt
+    titulaire_statut = compte.client.statut.value
+    if titulaire_statut != 'actif':
+        log_action(g.user.id, "ECHEC_DEPOT", f"Compte {compte.numero_compte}",
+                   {"raison": "client_non_actif", "client_statut": titulaire_statut})
+        flash(f'Opération impossible : le titulaire est {titulaire_statut}.', 'danger')
         return redirect(url_for('accounts.view', id=compte_id))
 
     if request.method == 'POST':
@@ -59,33 +66,13 @@ def depot(compte_id):
 
         if error is None:
             try:
-                # 1. Sauvegarder l'ancien solde
-                solde_avant = compte.solde
+                success, msg_or_op = effectuer_operation(compte.id, montant, TypeOperation.DEPOT, g.user.id, description)
                 
-                # 2. Mettre à jour le solde
-                compte.solde += montant
-                
-                # 3. Créer l'opération
-                operation = Operation(
-                    compte_id=compte.id,
-                    utilisateur_id=g.user.id,
-                    type_operation=TypeOperation.DEPOT,
-                    montant=montant,
-                    solde_avant=solde_avant,
-                    solde_apres=compte.solde,
-                    description=description
-                )
-                session.add(operation)
-                
-                # 4. Audit
-                log_action(g.user.id, "DEPOT", f"Compte {compte.numero_compte}", 
-                           {"montant": str(montant), "nouveau_solde": str(compte.solde)})
-                
-                session.commit()
-                compte_id = compte.id
-                flash(f'Dépôt de {montant} {Config.DEVISE} effectué avec succès !', 'success')
-                session.close()  # Fermer après le flash mais avant le redirect
-                return redirect(url_for('accounts.view', id=compte_id))
+                if success:
+                    flash(f'Dépôt de {montant} {Config.DEVISE} effectué avec succès !', 'success')
+                    return redirect(url_for('accounts.view', id=compte.id))
+                else:
+                    error = f"Erreur lors du dépôt : {msg_or_op}"
                 
             except Exception as e:
                 session.rollback()
@@ -102,7 +89,6 @@ def depot(compte_id):
     
     # Rendre le template
     result = render_template('operations/depot.html', compte=compte, config=Config)
-    session.close()
     return result
 
 @operations_bp.route('/retrait/<int:compte_id>', methods=('GET', 'POST'))
@@ -116,7 +102,6 @@ def retrait(compte_id):
     compte = session.query(Compte).filter_by(id=compte_id).first()
     
     if compte is None:
-        session.close()
         flash('Compte introuvable.', 'danger')
         return redirect(url_for('clients.index'))
     
@@ -124,8 +109,15 @@ def retrait(compte_id):
     if compte.statut.value != 'actif':
         log_action(g.user.id, "ECHEC_RETRAIT", f"Compte {compte.numero_compte}",
                    {"raison": "compte_inactif", "statut": compte.statut.value})
-        session.close()
         flash('Opération impossible : le compte n\'est pas actif.', 'danger')
+        return redirect(url_for('accounts.view', id=compte_id))
+
+    # VERIFICATION: Le client doit être actif pour effectuer un retrait
+    titulaire_statut = compte.client.statut.value
+    if titulaire_statut != 'actif':
+        log_action(g.user.id, "ECHEC_RETRAIT", f"Compte {compte.numero_compte}",
+                   {"raison": "client_non_actif", "client_statut": titulaire_statut})
+        flash(f'Opération impossible : le titulaire est {titulaire_statut}.', 'danger')
         return redirect(url_for('accounts.view', id=compte_id))
 
     if request.method == 'POST':
@@ -155,35 +147,34 @@ def retrait(compte_id):
                        {"raison": "montant_invalide", "montant": montant_str})
 
         if error is None:
+            # INTERCEPTION MAKER-CHECKER : Si le montant dépasse le seuil, on met en attente
+            if montant > Config.MAKER_CHECKER_THRESHOLD:
+                from src.checker import soumettre_approbation
+                try:
+                    payload = {
+                        'compte_id': compte.id,
+                        'numero_compte': compte.numero_compte,
+                        'montant': str(montant),
+                        'description': description,
+                        'date_demande': datetime.utcnow().isoformat()
+                    }
+                    demande = soumettre_approbation(session, 'RETRAIT_EXCEPTIONNEL', payload, g.user.id)
+                    session.commit()
+                    flash(f'Le retrait de {montant} {Config.DEVISE} dépasse le seuil de sécurité. La demande # {demande.id} a été mise en attente de validation par un administrateur.', 'warning')
+                    return redirect(url_for('accounts.view', id=compte.id))
+                except Exception as e:
+                    session.rollback()
+                    flash(f"Erreur lors de la mise en attente : {e}", 'danger')
+                    return redirect(url_for('accounts.view', id=compte.id))
+
             try:
-                # 1. Sauvegarder l'ancien solde
-                solde_avant = compte.solde
-                
-                # 2. Mettre à jour le solde
-                compte.solde -= montant
-                
-                # 3. Créer l'opération
-                operation = Operation(
-                    compte_id=compte.id,
-                    utilisateur_id=g.user.id,
-                    type_operation=TypeOperation.RETRAIT,
-                    montant=montant,
-                    solde_avant=solde_avant,
-                    solde_apres=compte.solde,
-                    description=description
-                )
-                session.add(operation)
-                
-                # 4. Audit
-                log_action(g.user.id, "RETRAIT", f"Compte {compte.numero_compte}", 
-                           {"montant": str(montant), "nouveau_solde": str(compte.solde)})
-                
-                session.commit()
-                compte_id = compte.id
-                flash(f'Retrait de {montant} {Config.DEVISE} effectué avec succès !', 'success')
-                session.close()  # Fermer après le flash mais avant le redirect
-                return redirect(url_for('accounts.view', id=compte_id))
-                
+                # Exécution normale (si sous le seuil)
+                success, msg_or_op = effectuer_operation(compte.id, montant, TypeOperation.RETRAIT, g.user.id, description)
+                if success:
+                    flash(f'Retrait de {montant} {Config.DEVISE} effectué avec succès !', 'success')
+                    return redirect(url_for('accounts.view', id=compte.id))
+                else:
+                    error = f"Erreur lors du retrait : {msg_or_op}"
             except Exception as e:
                 session.rollback()
                 log_action(g.user.id, "ECHEC_RETRAIT", f"Compte {compte.numero_compte}",
@@ -199,5 +190,59 @@ def retrait(compte_id):
     
     # Rendre le template
     result = render_template('operations/retrait.html', compte=compte, config=Config)
-    session.close()
     return result
+
+def effectuer_operation(compte_id, montant, type_op, user_id, description="", valide_par=None):
+    """
+    Fonction cœur pour exécuter une opération bancaire.
+    Peut être appelée par une route ou par le dispatcher Maker-Checker.
+
+    Args:
+        valide_par (int|None): ID de l'admin/checker ayant validé l'opération (optionnel).
+    """
+    session = obtenir_session()
+    try:
+        compte = session.query(Compte).filter_by(id=compte_id).with_for_update().first()
+        if not compte:
+            return False, "Compte introuvable."
+            
+        if compte.statut != StatutCompte.ACTIF:
+            return False, "Compte inactif."
+
+        montant = Decimal(str(montant))
+        solde_avant = compte.solde
+        
+        if type_op == TypeOperation.DEPOT:
+            compte.solde += montant
+        elif type_op == TypeOperation.RETRAIT:
+            if not compte.peut_retirer(montant):
+                return False, "Solde insuffisant ou limite dépassée."
+            compte.solde -= montant
+        
+        operation = Operation(
+            compte_id=compte.id,
+            utilisateur_id=user_id,
+            type_operation=type_op,
+            montant=montant,
+            solde_avant=solde_avant,
+            solde_apres=compte.solde,
+            description=description
+        )
+
+        # Enregistrer qui a validé (si fourni)
+        if valide_par is not None:
+            operation.valide_par_id = int(valide_par)
+
+        session.add(operation)
+        
+        # Audit
+        extra = {"montant": str(montant), "nouveau_solde": str(compte.solde)}
+        if valide_par is not None:
+            extra['valide_par'] = int(valide_par)
+        log_action(user_id, type_op.value.upper(), f"Compte {compte.numero_compte}", extra)
+        
+        session.commit()
+        return True, operation
+    except Exception as e:
+        session.rollback()
+        return False, str(e)
