@@ -38,3 +38,46 @@ static/design-preview/
 
 # ignore TODO.md files
 TODO.md
+
+# Pytest / coverage
+.pytest_cache/
+.coverage
+coverage/
+htmlcov/
+
+# MyPy / caches
+.mypy_cache/
+.cache/
+
+# pip / build / packaging
+pip-wheel-metadata/
+build/
+dist/
+*.egg-info/
+*.egg
+
+# OS / editor
+.DS_Store
+.Trashes
+
+# Node
+node_modules/
+
+# docs build
+docs/_build/
+
+# local env files
+.env.local
+.env.*.local
+.env.production
+
+# sqlite journaling files
+data/*.sqlite-journal
+
+# packaging artifacts
+*.whl
+
+# temporary files
+*.tmp
+*.swp
+*.swo
