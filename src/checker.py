@@ -19,6 +19,15 @@ def index():
     result = render_template('admin/approbations.html', demandes=demandes)
     return result
 
+
+@checker_bp.route('/mes')
+@login_required
+def mes():
+    """Liste les demandes soumises par l'utilisateur courant (Maker)."""
+    session = obtenir_session()
+    demandes = session.query(OperationEnAttente).filter_by(cree_par_id=g.user.id).order_by(OperationEnAttente.cree_le.desc()).all()
+    return render_template('checker/mes.html', demandes=demandes)
+
 @checker_bp.route('/decider/<int:id>', methods=('POST',))
 @admin_required
 def decider(id):
@@ -123,6 +132,16 @@ def rejeter_approbation(approbation_id, admin_id, raison=None, commentaire=None)
         demande = session.query(OperationEnAttente).get(approbation_id)
         if not demande or demande.statut != StatutAttente.PENDING:
             return False, "Demande introuvable ou déjà traitée."
+
+        # Disallow self-reject (maker cannot reject their own request)
+        if demande.cree_par_id == admin_id:
+            details = {"demande_id": demande.id, "maker_id": demande.cree_par_id, "attempt": "self_reject"}
+            try:
+                details["path"] = request.path
+            except Exception:
+                pass
+            log_action(admin_id, 'ACCES_REFUSE', 'Tentative_auto-rejet', details)
+            return False, "Le 'Checker' doit être différent du 'Maker' (Principe des 4 yeux)."
             
         demande.statut = StatutAttente.REJECTED
         demande.valide_par_id = admin_id
@@ -169,3 +188,41 @@ def _dispatcher_execution(session, demande, admin_id):
         return False, "Action non implémentée"
         
     return False, "Type d'opération inconnu"
+
+
+def retirer_approbation(approbation_id, user_id):
+    """Permet au maker de retirer (annuler) sa propre demande en attente."""
+    session = obtenir_session()
+    try:
+        demande = session.query(OperationEnAttente).get(approbation_id)
+        if not demande or demande.statut != StatutAttente.PENDING:
+            return False, "Demande introuvable ou déjà traitée."
+
+        # Only the original maker can withdraw
+        if demande.cree_par_id != user_id:
+            details = {"demande_id": demande.id, "actor_id": user_id, "attempt": "unauthorized_withdraw"}
+            try:
+                details["path"] = request.path
+            except Exception:
+                pass
+            log_action(user_id, 'ACCES_REFUSE', 'Tentative_retrait_non_autorisee', details)
+            return False, "Vous n'êtes pas autorisé à retirer cette demande."
+
+        demande.statut = StatutAttente.CANCELLED
+        demande.valide_le = datetime.utcnow()
+        demande.decision_reason = 'withdraw'
+        session.commit()
+        log_action(user_id, 'SOUMISSION_RETRACTION', demande.type_operation, {"demande_id": demande.id})
+        return True, "Demande retirée avec succès."
+    except Exception as e:
+        session.rollback()
+        return False, str(e)
+
+
+@checker_bp.route('/retirer/<int:id>', methods=('POST',))
+@login_required
+def retirer(id):
+    """Route pour que le maker retire sa propre demande."""
+    success, msg = retirer_approbation(id, g.user.id)
+    flash(msg, 'success' if success else 'danger')
+    return redirect(url_for('checker.index'))

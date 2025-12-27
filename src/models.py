@@ -73,6 +73,7 @@ class StatutAttente(enum.Enum):
     PENDING = "PENDING"
     APPROVED = "APPROVED"
     REJECTED = "REJECTED"
+    CANCELLED = "CANCELLED"
 
 
 # Générateur de numéro de compte unique

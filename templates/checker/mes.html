@@ -1,0 +1,52 @@
+{% extends 'base.html' %}
+
+{% block title %}Mes demandes - SecureBank{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>Mes demandes en attente</h1>
+</div>
+
+<div class="table-responsive shadow-sm">
+    <table class="table table-hover align-middle mb-0 text-nowrap">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Type</th>
+                <th>Date</th>
+                <th>Détails</th>
+                <th class="text-end">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for demande in demandes %}
+            <tr>
+                <td class="px-4 text-muted small">#{{ demande.id }}</td>
+                <td>{{ demande.type_operation }}</td>
+                <td class="small text-muted">{{ demande.cree_le.strftime('%d/%m/%Y %H:%M') }}</td>
+                <td>
+                    <button type="button" class="btn btn-sm btn-outline-info" onclick="toggleDetails('d-{{ demande.id }}')">Voir</button>
+                </td>
+                <td class="text-end">
+                    <form method="post" action="{{ url_for('checker.retirer', id=demande.id) }}" style="display:inline">
+                        <button type="submit" class="btn btn-sm btn-danger">Retirer</button>
+                    </form>
+                </td>
+            </tr>
+            <tr class="collapse" id="d-{{ demande.id }}">
+                <td colspan="5" class="bg-light-subtle px-4 py-3">
+                    <div class="p-3 bg-white rounded border small">
+                        <pre class="mb-0"><code>{{ demande.payload | tojson(indent=2) }}</code></pre>
+                    </div>
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="5" class="text-center py-5 text-muted">Aucune demande trouvée.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% endblock %}

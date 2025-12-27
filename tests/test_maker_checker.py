@@ -81,6 +81,59 @@ def test_maker_checker():
         session.delete(d)
         session.commit()
 
+    # --- New test: self-reject should be refused and audited ---
+    demande_reject = soumettre_approbation(session, 'RETRAIT_EXCEPTIONNEL', payload, operateur_id)
+    session.commit()
+    success_rej, msg_rej = rejeter_approbation(demande_reject.id, operateur_id)
+    print(f"Tentative auto-rejet : {success_rej} - {msg_rej}")
+    assert success_rej is False
+    session.expire_all()
+    audit_rej = session.query(Journal).filter_by(action='ACCES_REFUSE').order_by(Journal.id.desc()).first()
+    assert audit_rej is not None
+    details_rej = json.loads(audit_rej.details) if audit_rej.details else {}
+    assert details_rej.get('demande_id') == demande_reject.id
+    assert details_rej.get('attempt') == 'self_reject'
+
+    # cleanup
+    d2 = session.query(OperationEnAttente).get(demande_reject.id)
+    if d2:
+        session.delete(d2)
+        session.commit()
+
+    # --- New test: maker can withdraw their own request ---
+    demande_withdraw = soumettre_approbation(session, 'RETRAIT_EXCEPTIONNEL', payload, operateur_id)
+    session.commit()
+    success_w, msg_w = retirer_approbation(demande_withdraw.id, operateur_id)
+    print(f"Retrait par maker : {success_w} - {msg_w}")
+    assert success_w is True
+    session.expire_all()
+    d3 = session.query(OperationEnAttente).get(demande_withdraw.id)
+    assert d3.statut == StatutAttente.CANCELLED
+
+    # Check audit log for withdrawal
+    audit_w = session.query(Journal).filter_by(action='SOUMISSION_RETRACTION').order_by(Journal.id.desc()).first()
+    assert audit_w is not None
+    details_w = json.loads(audit_w.details) if audit_w.details else {}
+    assert details_w.get('demande_id') == demande_withdraw.id
+
+    # Unauthorized withdraw by someone else should be refused
+    demande_unauth = soumettre_approbation(session, 'RETRAIT_EXCEPTIONNEL', payload, operateur_id)
+    session.commit()
+    success_unauth, msg_unauth = retirer_approbation(demande_unauth.id, admin.id)
+    print(f"Tentative retrait non autorisée : {success_unauth} - {msg_unauth}")
+    assert success_unauth is False
+    session.expire_all()
+    audit_una = session.query(Journal).filter_by(action='ACCES_REFUSE').order_by(Journal.id.desc()).first()
+    assert audit_una is not None
+    details_una = json.loads(audit_una.details) if audit_una.details else {}
+    assert details_una.get('attempt') == 'unauthorized_withdraw'
+
+    # cleanup
+    d4 = session.query(OperationEnAttente).get(demande_unauth.id)
+    if d4:
+        session.delete(d4)
+        session.commit()
+
     session.close()
 
 if __name__ == "__main__":
