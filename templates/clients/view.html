@@ -37,6 +37,7 @@
             <div style="margin-bottom: 20px;">
                 <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">Statut Actuel</div>
                 <div>
+                    {% -- Status Badge -- %}
                     {% if client.statut.value == 'actif' %}
                         <span class="badge badge-success">Actif</span>
                     {% elif client.statut.value == 'inactif' %}
@@ -51,19 +52,34 @@
 
             <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 20px 0;">
             
-            <div class="management-actions">
+            {% -- Administrative Management Actions -- %}
+            {% -- only show if user has permission -- %}
+        
+            {% if has_permission(g.user, 'clients.suspend') or has_permission(g.user, 'clients.deactivate') or has_permission(g.user, 'clients.archive') or has_permission(g.user, 'clients.reactivate') %}
+            <div class="management-actions" role="region" aria-label="Gestion Administrative">
                 <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 12px;">Gestion Administrative</div>
                 
                 {% if client.statut.value == 'actif' %}
                     <div style="display: flex; flex-direction: column; gap: 10px;">
-                        <button type="button" class="btn btn-warning" style="width: 100%; padding: 8px; font-size: 13px; color: #b06000;" onclick="handleMgmt('suspend')">Suspendre le Client</button>
-                        <button type="button" class="btn btn-danger" style="width: 100%; padding: 8px; font-size: 13px;" onclick="handleMgmt('inactive')">Désactiver le Client</button>
-                        <button type="button" class="btn" style="width: 100%; padding: 8px; font-size: 13px; border: 1px solid var(--border-color);" onclick="handleMgmt('archive')">Archiver le Client</button>
+                        {% if has_permission(g.user, 'clients.suspend') %}
+                            <button type="button" class="btn btn-warning" style="width: 100%; padding: 8px; font-size: 13px; color: #b06000;" onclick="handleMgmt('suspend')">Suspendre le Client</button>
+                        {% endif %}
+
+                        {% if has_permission(g.user, 'clients.deactivate') %}
+                            <button type="button" class="btn btn-danger" style="width: 100%; padding: 8px; font-size: 13px;" onclick="handleMgmt('inactive')">Désactiver le Client</button>
+                        {% endif %}
+
+                        {% if has_permission(g.user, 'clients.archive') %}
+                            <button type="button" class="btn" style="width: 100%; padding: 8px; font-size: 13px; border: 1px solid var(--border-color);" onclick="handleMgmt('archive')">Archiver le Client</button>
+                        {% endif %}
                     </div>
                 {% else %}
-                    <button type="button" class="btn btn-success" style="width: 100%; padding: 8px; font-size: 13px;" onclick="handleMgmt('reactivate')">Réactiver le Client</button>
+                    {% if has_permission(g.user, 'clients.reactivate') %}
+                        <button type="button" class="btn btn-success" style="width: 100%; padding: 8px; font-size: 13px;" onclick="handleMgmt('reactivate')">Réactiver le Client</button>
+                    {% endif %}
                 {% endif %}
             </div>
+            {% endif %}
         </div>
     </div>
 

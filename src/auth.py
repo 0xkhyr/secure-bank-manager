@@ -86,7 +86,13 @@ PERMISSION_MAP = {
         'accounts.view', 'accounts.create', 'accounts.close',
         'operations.create', 'operations.view',
         'audit.view'
-    }
+    },
+    # Fine-grained client administrative permissions (admins/superadmins implicitly have '*')
+    'clients.suspend': set(),
+    'clients.deactivate': set(),
+    'clients.archive': set(),
+    'clients.reactivate': set(),
+    'clients.manage': set(),
 }
 
 

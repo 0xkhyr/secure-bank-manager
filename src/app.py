@@ -72,12 +72,15 @@ def inject_now():
             session['csrf_token'] = token
         return token
 
+    from src.auth import has_permission
+
     return {
         'now': datetime.utcnow, 
         'timedelta': timedelta,
         'max': max,
         'min': min,
-        'csrf_token': generate_csrf_token
+        'csrf_token': generate_csrf_token,
+        'has_permission': has_permission,
     }
 
 
