@@ -103,7 +103,7 @@ def test_maker_checker():
     # --- New test: maker can withdraw their own request ---
     demande_withdraw = soumettre_approbation(session, 'RETRAIT_EXCEPTIONNEL', payload, operateur_id)
     session.commit()
-    success_w, msg_w = retirer_approbation(demande_withdraw.id, operateur_id)
+    success_w, msg_w = retirer_approbation(demande_withdraw.id, operateur_id, 'Annulation volontaire', 'test comment')
     print(f"Retrait par maker : {success_w} - {msg_w}")
     assert success_w is True
     session.expire_all()
@@ -115,6 +115,8 @@ def test_maker_checker():
     assert audit_w is not None
     details_w = json.loads(audit_w.details) if audit_w.details else {}
     assert details_w.get('demande_id') == demande_withdraw.id
+    assert details_w.get('raison') == 'Annulation volontaire'
+    assert details_w.get('commentaire') == 'test comment'
 
     # Unauthorized withdraw by someone else should be refused
     demande_unauth = soumettre_approbation(session, 'RETRAIT_EXCEPTIONNEL', payload, operateur_id)

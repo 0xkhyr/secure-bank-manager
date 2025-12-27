@@ -198,8 +198,13 @@ def _dispatcher_execution(session, demande, admin_id):
     return False, "Type d'opération inconnu"
 
 
-def retirer_approbation(approbation_id, user_id):
-    """Permet au maker de retirer (annuler) sa propre demande en attente."""
+def retirer_approbation(approbation_id, user_id, raison=None, commentaire=None):
+    """Permet au maker de retirer (annuler) sa propre demande en attente.
+
+    Args:
+        raison (str|None): Raison fournie par le maker (sélection dans le modal)
+        commentaire (str|None): Commentaire optionnel fourni par le maker
+    """
     session = obtenir_session()
     try:
         demande = session.query(OperationEnAttente).get(approbation_id)
@@ -218,9 +223,14 @@ def retirer_approbation(approbation_id, user_id):
 
         demande.statut = StatutAttente.CANCELLED
         demande.valide_le = datetime.utcnow()
-        demande.decision_reason = 'withdraw'
+        # Record provided reason/commentary if any
+        demande.decision_reason = raison or 'withdraw'
+        demande.decision_comment = commentaire
         session.commit()
-        log_action(user_id, 'SOUMISSION_RETRACTION', demande.type_operation, {"demande_id": demande.id})
+        details = {"demande_id": demande.id, "raison": demande.decision_reason}
+        if commentaire:
+            details["commentaire"] = commentaire
+        log_action(user_id, 'SOUMISSION_RETRACTION', demande.type_operation, details)
         return True, "Demande retirée avec succès."
     except Exception as e:
         session.rollback()
@@ -231,6 +241,8 @@ def retirer_approbation(approbation_id, user_id):
 @login_required
 def retirer(id):
     """Route pour que le maker retire sa propre demande."""
-    success, msg = retirer_approbation(id, g.user.id)
+    raison = request.form.get('raison')
+    commentaire = request.form.get('commentaire')
+    success, msg = retirer_approbation(id, g.user.id, raison, commentaire)
     flash(msg, 'success' if success else 'danger')
     return redirect(url_for('checker.index'))
