@@ -164,7 +164,7 @@
                             </td>
                             <td>{{ (compte.date_ouverture|to_local_time).strftime('%d/%m/%Y') }}</td>
                             <td>
-                                <a href="{{ url_for('accounts.view_by_num', numero_compte=compte.numero_compte) }}" class="btn" style="padding: 6px 16px; font-size: 13px;">Gérer</a>
+                                <a href="{{ url_for('accounts.view', numero_compte=compte.numero_compte) }}" class="btn" style="padding: 6px 16px; font-size: 13px;">Gérer</a>
                             </td>
                         </tr>
                         {% endfor %}

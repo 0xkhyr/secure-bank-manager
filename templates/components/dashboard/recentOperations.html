@@ -27,7 +27,7 @@
                         {% endif %}
                     </div>
                 </div>
-                <div class="timeline-desc">{{ op.compte.numero_compte }} • Par {{ op.utilisateur.nom_utilisateur or 'N/A' }} • Solde après: {{ "%.2f"|format(op.solde_apres) }} TND</div>
+                <div class="timeline-desc"><a href="{{ url_for('accounts.view', numero_compte=op.compte.numero_compte) }}">{{ op.compte.numero_compte }}</a> • Par {{ op.utilisateur.nom_utilisateur or 'N/A' }} • Solde après: {{ "%.2f"|format(op.solde_apres) }} TND</div>
             </div>
         </div>
         {% else %}

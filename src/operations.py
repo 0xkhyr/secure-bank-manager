@@ -38,7 +38,7 @@ def depot(compte_id):
         log_action(g.user.id, "ECHEC_DEPOT", f"Compte {compte.numero_compte}",
                    {"raison": "compte_inactif", "statut": compte.statut.value})
         flash('Opération impossible : le compte n\'est pas actif.', 'danger')
-        return redirect(url_for('accounts.view', id=compte_id))
+        return redirect(url_for('accounts.view', numero_compte=compte.numero_compte))
 
     # VERIFICATION: Le client doit être actif pour effectuer un dépôt
     titulaire_statut = compte.client.statut.value
@@ -46,7 +46,7 @@ def depot(compte_id):
         log_action(g.user.id, "ECHEC_DEPOT", f"Compte {compte.numero_compte}",
                    {"raison": "client_non_actif", "client_statut": titulaire_statut})
         flash(f'Opération impossible : le titulaire est {titulaire_statut}.', 'danger')
-        return redirect(url_for('accounts.view', id=compte_id))
+        return redirect(url_for('accounts.view', numero_compte=compte.numero_compte))
 
     if request.method == 'POST':
         montant_str = request.form['montant']
@@ -70,7 +70,7 @@ def depot(compte_id):
                 
                 if success:
                     flash(f'Dépôt de {montant} {Config.DEVISE} effectué avec succès !', 'success')
-                    return redirect(url_for('accounts.view', id=compte.id))
+                    return redirect(url_for('accounts.view', numero_compte=compte.numero_compte))
                 else:
                     error = f"Erreur lors du dépôt : {msg_or_op}"
                 
@@ -110,7 +110,7 @@ def retrait(compte_id):
         log_action(g.user.id, "ECHEC_RETRAIT", f"Compte {compte.numero_compte}",
                    {"raison": "compte_inactif", "statut": compte.statut.value})
         flash('Opération impossible : le compte n\'est pas actif.', 'danger')
-        return redirect(url_for('accounts.view', id=compte_id))
+        return redirect(url_for('accounts.view', numero_compte=compte.numero_compte))
 
     # VERIFICATION: Le client doit être actif pour effectuer un retrait
     titulaire_statut = compte.client.statut.value
@@ -118,7 +118,7 @@ def retrait(compte_id):
         log_action(g.user.id, "ECHEC_RETRAIT", f"Compte {compte.numero_compte}",
                    {"raison": "client_non_actif", "client_statut": titulaire_statut})
         flash(f'Opération impossible : le titulaire est {titulaire_statut}.', 'danger')
-        return redirect(url_for('accounts.view', id=compte_id))
+        return redirect(url_for('accounts.view', numero_compte=compte.numero_compte))
 
     if request.method == 'POST':
         montant_str = request.form['montant']
@@ -161,18 +161,18 @@ def retrait(compte_id):
                     demande = soumettre_approbation(session, 'RETRAIT_EXCEPTIONNEL', payload, g.user.id)
                     session.commit()
                     flash(f'Le retrait de {montant} {Config.DEVISE} dépasse le seuil de sécurité. La demande # {demande.id} a été mise en attente de validation par un administrateur.', 'warning')
-                    return redirect(url_for('accounts.view', id=compte.id))
+                    return redirect(url_for('accounts.view', numero_compte=compte.numero_compte))
                 except Exception as e:
                     session.rollback()
                     flash(f"Erreur lors de la mise en attente : {e}", 'danger')
-                    return redirect(url_for('accounts.view', id=compte.id))
+                    return redirect(url_for('accounts.view', numero_compte=compte.numero_compte))
 
             try:
                 # Exécution normale (si sous le seuil)
                 success, msg_or_op = effectuer_operation(compte.id, montant, TypeOperation.RETRAIT, g.user.id, description)
                 if success:
                     flash(f'Retrait de {montant} {Config.DEVISE} effectué avec succès !', 'success')
-                    return redirect(url_for('accounts.view', id=compte.id))
+                    return redirect(url_for('accounts.view', numero_compte=compte.numero_compte))
                 else:
                     error = f"Erreur lors du retrait : {msg_or_op}"
             except Exception as e:

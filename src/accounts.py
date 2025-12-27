@@ -93,12 +93,12 @@ def create(client_id):
     result = render_template('accounts/create.html', client=client, config=Config)
     return result
 
-@accounts_bp.route('/<int:id>')
+@accounts_bp.route('/<numero_compte>')
 @login_required
-def view(id):
-    """Affiche les détails d'un compte et son historique."""
+def view(numero_compte):
+    """Affiche les détails d'un compte et son historique (identifié par numero_compte)."""
     session = obtenir_session()
-    compte = session.query(Compte).filter_by(id=id).first()
+    compte = session.query(Compte).filter_by(numero_compte=numero_compte).first()
     
     if compte is None:
         flash('Compte introuvable.', 'danger')
@@ -108,34 +108,18 @@ def view(id):
     client_id = compte.client_id
         
     # Charger l'historique des opérations (plus récent en premier)
-    operations = session.query(Operation).filter_by(compte_id=id).order_by(Operation.date_operation.desc()).all()
+    operations = session.query(Operation).filter_by(compte_id=compte.id).order_by(Operation.date_operation.desc()).all()
     nb_operations = len(operations)
     # Logger la consultation du compte et de l'historique
     log_action(g.user.id, "CONSULTATION_COMPTE", f"Compte {compte.numero_compte}",
-               {"compte_id": id, "numero_compte": compte.numero_compte, 
+               {"compte_id": compte.id, "numero_compte": compte.numero_compte, 
                 "client_id": client_id, "nb_operations": nb_operations})
     
     response = render_template('accounts/view.html', compte=compte, client_id=client_id, operations=operations)
     return response
 
 
-@accounts_bp.route('/<numero_compte>')
-@login_required
-def view_by_num(numero_compte):
-    """Redirige vers la vue canonique du compte en utilisant l'identifiant numérique.
 
-    Autorise des URL lisibles telles que /accounts/CPT251227212555 et redirige vers /accounts/<id>.
-    """
-    session = obtenir_session()
-    compte = session.query(Compte).filter_by(numero_compte=numero_compte).first()
-    if compte is None:
-        from flask import abort
-        session.close()
-        abort(404)
-    # Render the canonical view directly so /accounts/<numero> is a friendly, canonical URL
-    target_id = compte.id
-    session.close()
-    return view(target_id)
 
 @accounts_bp.route('/<int:id>/cloturer', methods=('POST',))
 @permission_required('accounts.close')
@@ -153,7 +137,7 @@ def close(id):
         
     if compte.solde != 0:
         flash('Impossible de clôturer un compte avec un solde positif. Veuillez tout retirer d\'abord.', 'danger')
-        return redirect(url_for('accounts.view', id=id))
+        return redirect(url_for('accounts.view', numero_compte=compte.numero_compte))
     
     # Récupérer la raison de clôture
     raison = request.form.get('raison', 'Demande client')
@@ -190,13 +174,13 @@ def reopen(id):
     
     if compte.statut.value != 'ferme':
         flash('Ce compte n\'est pas fermé.', 'danger')
-        return redirect(url_for('accounts.view', id=id))
+        return redirect(url_for('accounts.view', numero_compte=compte.numero_compte))
 
     # VERIFICATION: Le client doit être actif pour réouvrir un compte
     titulaire_statut = compte.client.statut.value
     if titulaire_statut != 'actif':
         flash(f'Action impossible : le titulaire du compte est {titulaire_statut}.', 'danger')
-        return redirect(url_for('accounts.view', id=id))
+        return redirect(url_for('accounts.view', numero_compte=compte.numero_compte))
     
     # Récupérer la raison de réouverture
     raison = request.form.get('raison', 'Décision administrative')
@@ -214,4 +198,4 @@ def reopen(id):
         session.rollback()
         flash(f'Erreur : {e}', 'danger')
         
-    return redirect(url_for('accounts.view', id=compte_id))
+    return redirect(url_for('accounts.view', numero_compte=compte.numero_compte))
