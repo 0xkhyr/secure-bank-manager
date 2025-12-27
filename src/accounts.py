@@ -118,6 +118,25 @@ def view(id):
     response = render_template('accounts/view.html', compte=compte, client_id=client_id, operations=operations)
     return response
 
+
+@accounts_bp.route('/<numero_compte>')
+@login_required
+def view_by_num(numero_compte):
+    """Redirige vers la vue canonique du compte en utilisant l'identifiant numérique.
+
+    Autorise des URL lisibles telles que /accounts/CPT251227212555 et redirige vers /accounts/<id>.
+    """
+    session = obtenir_session()
+    compte = session.query(Compte).filter_by(numero_compte=numero_compte).first()
+    if compte is None:
+        from flask import abort
+        session.close()
+        abort(404)
+    # Render the canonical view directly so /accounts/<numero> is a friendly, canonical URL
+    target_id = compte.id
+    session.close()
+    return view(target_id)
+
 @accounts_bp.route('/<int:id>/cloturer', methods=('POST',))
 @permission_required('accounts.close')
 def close(id):

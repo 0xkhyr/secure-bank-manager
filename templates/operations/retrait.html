@@ -39,7 +39,7 @@
                 </div>
 
                 <div style="display: flex; justify-content: space-between; margin-top: 32px;">
-                    <a href="{{ url_for('accounts.view', id=compte.id) }}" class="btn">Annuler</a>
+                    <a href="{{ url_for('accounts.view_by_num', numero_compte=compte.numero_compte) }}" class="btn">Annuler</a>
                     <button type="submit" class="btn btn-primary" style="background: #f9ab00; border-color: #f9ab00; color: var(--text-primary);">Confirmer le Retrait</button>
                 </div>
             </form>
