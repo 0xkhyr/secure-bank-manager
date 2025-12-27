@@ -1,0 +1,47 @@
+{% extends 'base.html' %}
+
+{% block title %}Éditer Politique - {{ policy.key if policy else 'Nouvelle' }}{% endblock %}
+
+{% block content %}
+<h1>Éditer Politique</h1>
+
+<form method="post">
+    <div class="mb-3">
+        <label class="form-label">Clé</label>
+        <input class="form-control" name="key" value="{{ policy.key if policy else '' }}" disabled>
+    </div>
+    <div class="mb-3">
+        <label class="form-label">Valeur</label>
+        <input class="form-control" name="value" value="{{ policy.value if policy else '' }}">
+    </div>
+    <div class="mb-3">
+        <label class="form-label">Type</label>
+        <select name="type" class="form-select">
+            <option value="string" {% if policy and policy.type=='string' %}selected{% endif %}>string</option>
+            <option value="int" {% if policy and policy.type=='int' %}selected{% endif %}>int</option>
+            <option value="json" {% if policy and policy.type=='json' %}selected{% endif %}>json</option>
+            <option value="bool" {% if policy and policy.type=='bool' %}selected{% endif %}>bool</option>
+        </select>
+    </div>
+    <div class="mb-3">
+        <label class="form-label">Description</label>
+        <textarea class="form-control" name="description">{{ policy.description if policy else '' }}</textarea>
+    </div>
+    <div class="mb-3">
+        <label class="form-label">Commentaire de modification (audit)</label>
+        <input class="form-control" name="comment">
+    </div>
+    <button class="btn btn-primary">Sauvegarder</button>
+    <a class="btn btn-link" href="{{ url_for('policies.index') }}">Annuler</a>
+</form>
+
+<hr>
+<h3>Historique</h3>
+<ul class="list-group">
+    {% for h in history %}
+    <li class="list-group-item small">{{ h.changed_at.strftime('%d/%m/%Y %H:%M') }} — {{ h.changed_by }} — {{ h.comment or '' }} — {{ h.value|truncate(120) }}</li>
+    {% else %}
+    <li class="list-group-item small text-muted">Pas d'historique</li>
+    {% endfor %}
+</ul>
+{% endblock %}

@@ -1,0 +1,48 @@
+{% extends 'base.html' %}
+
+{% block title %}Politiques - SecureBank{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>Politiques (Configuration)</h1>
+    <form method="post" action="{{ url_for('policies.create') }}" class="d-flex gap-2">
+        <input name="key" placeholder="Clé (ex: password.max_age_days)" class="form-control form-control-sm" required>
+        <input name="value" placeholder="Valeur" class="form-control form-control-sm" required>
+        <button class="btn btn-sm btn-primary">Créer</button>
+    </form>
+</div>
+
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>Clé</th>
+            <th>Valeur</th>
+            <th>Type</th>
+            <th>Active</th>
+            <th>Dernière modification</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for p in policies %}
+        <tr>
+            <td>{{ p.key }}</td>
+            <td>{{ p.value|truncate(60) }}</td>
+            <td>{{ p.type }}</td>
+            <td>{{ 'Oui' if p.active else 'Non' }}</td>
+            <td class="small text-muted">{{ p.updated_at.strftime('%d/%m/%Y %H:%M') if p.updated_at else '-' }}</td>
+            <td>
+                <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('policies.edit', key=p.key) }}">Éditer</a>
+                <form method="post" action="{{ url_for('policies.toggle', id=p.id) }}" style="display:inline">
+                    <button class="btn btn-sm btn-outline-warning">{{ 'Désactiver' if p.active else 'Activer' }}</button>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<form method="post" action="{{ url_for('policies.apply_now') }}">
+    <button class="btn btn-sm btn-secondary">Appliquer maintenant (recharger cache)</button>
+</form>
+{% endblock %}
