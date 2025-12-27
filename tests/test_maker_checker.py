@@ -117,6 +117,8 @@ def test_maker_checker():
     assert details_w.get('demande_id') == demande_withdraw.id
     assert details_w.get('raison') == 'Annulation volontaire'
     assert details_w.get('commentaire') == 'test comment'
+    # montant should be logged when present in the demande payload
+    assert details_w.get('montant') == payload['montant']
 
     # Unauthorized withdraw by someone else should be refused
     demande_unauth = soumettre_approbation(session, 'RETRAIT_EXCEPTIONNEL', payload, operateur_id)

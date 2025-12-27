@@ -230,6 +230,12 @@ def retirer_approbation(approbation_id, user_id, raison=None, commentaire=None):
         details = {"demande_id": demande.id, "raison": demande.decision_reason}
         if commentaire:
             details["commentaire"] = commentaire
+        # Include montant when present in the payload (e.g., for RETRAIT_EXCEPTIONNEL)
+        try:
+            if isinstance(demande.payload, dict) and 'montant' in demande.payload:
+                details['montant'] = demande.payload.get('montant')
+        except Exception:
+            pass
         log_action(user_id, 'SOUMISSION_RETRACTION', demande.type_operation, details)
         return True, "Demande retirée avec succès."
     except Exception as e:
