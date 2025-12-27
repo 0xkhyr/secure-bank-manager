@@ -14,9 +14,17 @@ def index():
     session = obtenir_session()
     # Eager-load the requester to avoid lazy-loading while rendering after session lifecycle changes
     from sqlalchemy.orm import joinedload
-    demandes = session.query(OperationEnAttente).options(joinedload(OperationEnAttente.cree_par)).filter_by(statut=StatutAttente.PENDING).order_by(OperationEnAttente.cree_le.desc()).all()
+    q = session.query(OperationEnAttente).options(joinedload(OperationEnAttente.cree_par)).filter(OperationEnAttente.statut == StatutAttente.PENDING)
+
+    # Optional filter: show only current user's demandes
+    filter_param = request.args.get('filter')
+    show_mine = (filter_param == 'mine')
+    if show_mine:
+        q = q.filter(OperationEnAttente.cree_par_id == g.user.id)
+
+    demandes = q.order_by(OperationEnAttente.cree_le.desc()).all()
     # Session remains valid until request teardown; eager load prevents DetachedInstanceError in templates
-    result = render_template('admin/approbations.html', demandes=demandes)
+    result = render_template('admin/approbations.html', demandes=demandes, filter=filter_param)
     return result
 
 

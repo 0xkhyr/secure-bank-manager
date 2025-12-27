@@ -8,7 +8,17 @@
     <span class="badge bg-primary rounded-pill px-3">{{ demandes|length }} en attente</span>
 </div>
 
-<div class="table-responsive shadow-sm">
+<div class="table-toolbar mb-3 d-flex justify-content-between align-items-center">
+        <div>
+            <button id="filterMineBtn" type="button" class="btn btn-sm btn-outline-primary">Afficher mes demandes</button>
+            {% if filter == 'mine' %}
+                <a href="{{ url_for('checker.index') }}" class="btn btn-sm btn-link">Voir toutes</a>
+            {% endif %}
+        </div>
+        <div class="small text-muted" id="visibleCount">{{ demandes|length }} affichées</div>
+    </div>
+
+    <div class="table-responsive shadow-sm">
     <table class="table table-hover align-middle mb-0 text-nowrap">
         <thead>
             <tr>
@@ -22,7 +32,7 @@
         </thead>
                 <tbody>
                     {% for demande in demandes %}
-                    <tr>
+                    <tr data-creator="{{ demande.cree_par_id }}">
                         <td class="px-4 text-muted small">#{{ demande.id }}</td>
                         <td>
                             <span class="badge bg-warning-subtle text-warning border border-warning-subtle">
@@ -40,14 +50,20 @@
                         </td>
                         <td class="text-end px-4">
                             <div class="d-flex justify-content-end gap-2">
-                                <button type="button" class="btn btn-sm btn-success px-3 btn-decision" 
-                                    data-id="{{ demande.id }}" data-action="approve">
-                                    <i class="bi bi-check-lg"></i> Approuver
-                                </button>
-                                <button type="button" class="btn btn-sm btn-outline-danger btn-danger-soft px-3 btn-decision"
-                                    data-id="{{ demande.id }}" data-action="reject">
-                                    <i class="bi bi-x-lg"></i> Rejeter
-                                </button>
+                                {% if g.user and demande.cree_par_id == g.user.id %}
+                                    <button type="button" class="btn btn-sm btn-danger px-3 btn-decision" data-id="{{ demande.id }}" data-action="withdraw">
+                                        <i class="bi bi-x-lg"></i> Retirer
+                                    </button>
+                                {% else %}
+                                    <button type="button" class="btn btn-sm btn-success px-3 btn-decision" 
+                                        data-id="{{ demande.id }}" data-action="approve">
+                                        <i class="bi bi-check-lg"></i> Approuver
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-outline-danger btn-danger-soft px-3 btn-decision"
+                                        data-id="{{ demande.id }}" data-action="reject">
+                                        <i class="bi bi-x-lg"></i> Rejeter
+                                    </button>
+                                {% endif %}
                             </div>
                         </td>
                     </tr>
@@ -83,18 +99,35 @@ function toggleDetails(id) {
 
 function confirmDecision(id, action) {
     const isApprove = action === 'approve';
-    const url = "{{ url_for('checker.decider', id=0) }}".replace('/0', '/' + id);
-    
-    showManagementModal({
-        title: isApprove ? "Approuver l'opération #" + id : "Rejeter l'opération #" + id,
-        action: url,
-        submitText: isApprove ? "Confirmer l'approbation" : "Confirmer le rejet",
-        submitStyle: isApprove ? "background: #22c55e; border-color: #22c55e; color: white;" : "background: #dc2626; border-color: #dc2626; color: white;",
-        extraField: { name: "action", value: action },
-        reasons: isApprove ? 
-            ["Validation manuelle standard", "Vérification effectuée", "Décision hiérarchique", "Dossier complet"] : 
-            ["Données invalides", "Suspicion de fraude", "Solde insuffisant", "Client introuvable", "Document manquant"]
-    });
+    // For approve/reject we use the decider endpoint
+    if (action === 'approve' || action === 'reject') {
+        const url = "{{ url_for('checker.decider', id=0) }}".replace('/0', '/' + id);
+        showManagementModal({
+            title: isApprove ? "Approuver l'opération #" + id : "Rejeter l'opération #" + id,
+            action: url,
+            submitText: isApprove ? "Confirmer l'approbation" : "Confirmer le rejet",
+            submitStyle: isApprove ? "background: #22c55e; border-color: #22c55e; color: white;" : "background: #dc2626; border-color: #dc2626; color: white;",
+            extraField: { name: "action", value: action },
+            reasons: isApprove ? 
+                ["Validation manuelle standard", "Vérification effectuée", "Décision hiérarchique", "Dossier complet"] : 
+                ["Données invalides", "Suspicion de fraude", "Solde insuffisant", "Client introuvable", "Document manquant"]
+        });
+        return;
+    }
+
+    // Withdraw flow for maker
+    if (action === 'withdraw') {
+        const url = "{{ url_for('checker.retirer', id=0) }}".replace('/0', '/' + id);
+        showManagementModal({
+            title: "Retirer la demande #" + id,
+            action: url,
+            submitText: "Retirer la demande",
+            submitStyle: "background: #dc2626; border-color: #dc2626; color: white;",
+            extraField: null,
+            reasons: ["Annulation volontaire", "Erreur de saisie", "Informations incomplètes"]
+        });
+        return;
+    }
 }
 
 // Initialisation des écouteurs d'événements
@@ -106,6 +139,52 @@ document.addEventListener('DOMContentLoaded', function() {
             confirmDecision(id, action);
         });
     });
-});
+    // Client-side filter: show only rows created by current user
+    const filterBtn = document.getElementById('filterMineBtn');
+    const myId = "{{ g.user.id if g.user else '' }}";
+    const tbody = document.querySelector('table tbody');
+    const rows = tbody ? Array.from(tbody.querySelectorAll('tr[data-creator]')) : [];
+    const visibleCountEl = document.getElementById('visibleCount');
+
+    function updateVisibleCount() {
+        const visible = rows.filter(r => !r.classList.contains('d-none'));
+        if (visibleCountEl) visibleCountEl.textContent = `${visible.length} affichées`;
+    }
+
+    function applyClientFilter(showOnlyMine) {
+        rows.forEach(r => {
+            const creator = r.getAttribute('data-creator');
+            if (showOnlyMine && creator !== String(myId)) {
+                r.classList.add('d-none');
+            } else {
+                r.classList.remove('d-none');
+            }
+        });
+        updateVisibleCount();
+    }
+
+    if (filterBtn) {
+        // If the server applied the 'mine' filter, keep button active
+        const serverFilter = '{{ filter or "" }}';
+        if (serverFilter === 'mine') {
+            filterBtn.classList.add('active');
+            filterBtn.textContent = 'Mes demandes (filtré)';
+            applyClientFilter(true);
+        }
+
+        filterBtn.addEventListener('click', function() {
+            const isActive = filterBtn.classList.toggle('active');
+            filterBtn.textContent = isActive ? 'Afficher toutes' : 'Afficher mes demandes';
+            applyClientFilter(isActive);
+            // update URL param without reloading
+            const url = new URL(window.location);
+            if (isActive) {
+                url.searchParams.set('filter', 'mine');
+            } else {
+                url.searchParams.delete('filter');
+            }
+            window.history.replaceState({}, '', url);
+        });
+    }});
 </script>
 {% endblock %}
