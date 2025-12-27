@@ -78,7 +78,20 @@ def executer_approbation(approbation_id, admin_id, raison=None, commentaire=None
             return False, "Demande introuvable ou déjà traitée."
             
         if demande.cree_par_id == admin_id:
+            # Audit attempt: user tried to approve their own request (4-eyes principle violation)
+            details = {
+                "demande_id": demande.id,
+                "maker_id": demande.cree_par_id,
+                "attempt": "self_approval"
+            }
+            try:
+                # include request path if available (guard against missing request context)
+                details["path"] = request.path
+            except Exception:
+                pass
+            log_action(admin_id, 'ACCES_REFUSE', 'Tentative_auto-approbation', details)
             return False, "Le 'Checker' doit être différent du 'Maker' (Principe des 4 yeux)."
+        
 
         # 1. Marquer comme approuvé
         demande.statut = StatutAttente.APPROVED

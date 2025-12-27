@@ -56,6 +56,31 @@ def test_maker_checker():
 
     session_verify.close()
     
+    # --- New test: self-approval should be refused and audited ---
+    # Maker is the same as checker
+    demande_self = soumettre_approbation(session, 'RETRAIT_EXCEPTIONNEL', payload, admin.id)
+    session.commit()
+    success2, msg2 = executer_approbation(demande_self.id, admin.id)
+    print(f"Tentative auto-approbation : {success2} - {msg2}")
+    assert success2 is False
+    assert "Checker" in msg2 or "Checker'" in msg2 or "4 yeux" in msg2
+
+    # Check audit log for ACCES_REFUSE
+    import json
+    from src.models import Journal
+    session.expire_all()
+    audit = session.query(Journal).filter_by(action='ACCES_REFUSE').order_by(Journal.id.desc()).first()
+    assert audit is not None
+    details = json.loads(audit.details) if audit.details else {}
+    assert details.get('demande_id') == demande_self.id
+    assert details.get('attempt') == 'self_approval'
+
+    # cleanup the self-approval request
+    d = session.query(OperationEnAttente).get(demande_self.id)
+    if d:
+        session.delete(d)
+        session.commit()
+
     session.close()
 
 if __name__ == "__main__":
