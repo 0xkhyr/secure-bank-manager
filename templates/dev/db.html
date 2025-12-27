@@ -166,6 +166,23 @@
             <i class="bi bi-arrow-left"></i> Retour au Dashboard Client
         </a>
     </div>
+
+    {% if dev_users %}
+    <div class="glass-card mt-4">
+        <h4 class="mb-3">Comptes de développement</h4>
+        <p class="text-muted">Ces identifiants sont fournis pour vous aider en développement — <strong>ne les utilisez pas</strong> en production.</p>
+        <div class="row">
+            {% for u in dev_users %}
+            <div class="col-md-4">
+                <div class="stat-item" style="text-align:left;">
+                    <div style="font-weight:700; font-size:16px;">{{ u.username }}</div>
+                    <div style="color:var(--text-secondary); margin-top:6px;">Mot de passe: <code>{{ u.password }}</code></div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
 </div>
 
 {% endblock %}
