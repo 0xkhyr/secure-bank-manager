@@ -21,6 +21,13 @@ class TestPolicySeed(unittest.TestCase):
             p2 = session.query(Politique).filter_by(cle='mfa.roles_obligatoires').first()
             self.assertIsNotNone(p2)
             self.assertEqual(p2.type, 'json')
+            # Additional seeded policies
+            v = session.query(Politique).filter_by(cle='velocity.actif').first()
+            self.assertIsNotNone(v)
+            self.assertEqual(v.type, 'bool')
+            lock = session.query(Politique).filter_by(cle='utilisateurs.tentatives_verrouillage').first()
+            self.assertIsNotNone(lock)
+            self.assertEqual(lock.type, 'int')
         finally:
             session.close()
 

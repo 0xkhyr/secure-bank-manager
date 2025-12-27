@@ -231,6 +231,19 @@ def creer_policies_defaut():
             ('operation.utilisateur.max_par_minute', 5, 'int', "Nombre maximum d'opérations par minute par utilisateur"),
             ('maker_checker.seuil_montant', 5000, 'int', "Montant au dessus duquel la demande est soumise à approbation"),
             ('mfa.roles_obligatoires', json.dumps(['admin', 'superadmin']), 'json', "Activer MFA pour ces rôles"),
+            # Velocity / contrôle de fréquence
+            ('velocity.actif', 'true', 'bool', "Activer le contrôle de vitesse (velocity)"),
+            ('velocity.methode', 'db', 'string', "Méthode de contrôle: 'db' ou 'redis'"),
+            ('velocity.retrait.max_par_minute', 3, 'int', "Nombre maximum de retraits par minute par utilisateur"),
+            # Verrouillage utilisateur
+            ('utilisateurs.tentatives_verrouillage', 5, 'int', "Tentatives de connexion avant verrouillage"),
+            ('utilisateurs.duree_verrouillage_minutes', 15, 'int', "Durée du verrouillage (minutes)"),
+            # Audit & rétention
+            ('audit.retention_jours', 365, 'int', "Durée de rétention des logs d'audit (jours)"),
+            # Politique d'approbation des changements critiques
+            ('changement_politique.requiert_approbation', json.dumps(['retrait.limite_journaliere', 'mot_de_passe.duree_validite_jours', 'mfa.roles_obligatoires']), 'json', "Clés nécessitant approbation pour modification"),
+            # Cache politique
+            ('politiques.cache_ttl_secondes', 30, 'int', "TTL du cache des politiques (secondes)"),
         ]
 
         for key, val, typ, desc in defaults:
