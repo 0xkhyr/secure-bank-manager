@@ -1,0 +1,23 @@
+<!-- Stats -->
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-label">Total Clients</div>
+        <div class="stat-value">{{ stats.total_clients }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Comptes Actifs</div>
+        <div class="stat-value">{{ stats.comptes_actifs }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Total Comptes</div>
+        <div class="stat-value">{{ stats.total_comptes }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Opérations</div>
+        <div class="stat-value">{{ stats.total_operations }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Solde Total</div>
+        <div class="stat-value">{{ "%.0f"|format(stats.solde_total) }} TND</div>
+    </div>
+</div>

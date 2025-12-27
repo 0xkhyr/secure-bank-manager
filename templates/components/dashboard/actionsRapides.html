@@ -1,0 +1,11 @@
+<!-- Actions -->
+<div class="actions">
+    <div class="actions-title">Actions rapides</div>
+    <div class="action-grid">
+        <a href="{{ url_for('clients.create') }}" class="btn btn-primary">Nouveau client</a>
+        <a href="{{ url_for('clients.index') }}" class="btn">Voir les clients</a>
+        {% if g.user.role.value == 'admin' %}
+        <a href="{{ url_for('audit.index') }}" class="btn">Journal d'audit</a>
+        {% endif %}
+    </div>
+</div>

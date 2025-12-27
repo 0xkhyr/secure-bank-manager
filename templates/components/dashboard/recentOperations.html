@@ -1,0 +1,39 @@
+<!-- Recent Operations -->
+<div style="margin-top: 32px;">
+    <h2 style="font-size: 18px; font-weight: 400; margin-bottom: 24px;">Opérations récentes</h2>
+    
+    <div class="timeline">
+        {% for op in operations %}
+        <div class="timeline-item">
+            <div class="timeline-icon {% if op.type_operation.value == 'depot' %}success{% else %}warning{% endif %}"></div>
+            <div class="timeline-body">
+                <div class="timeline-header">
+                    <div class="timeline-title">
+                        {% if op.type_operation.value == 'depot' %}
+                            Dépôt <span class="amount positive" style="color: green;">+{{ "%.2f"|format(op.montant) }} TND</span>
+                        {% else %}
+                            Retrait <span class="amount negative" style="color: red;">-{{ "%.2f"|format(op.montant) }} TND</span>
+                        {% endif %}
+                    </div>
+                    <div class="timeline-time">
+                        {% set op_local = op.date_operation|to_local_time %}
+                        {% set today = now().date() %}
+                        {% if op.date_operation.date() == today %}
+                            {{ op_local.strftime('%H:%M') }}
+                        {% elif (today - op.date_operation.date()).days == 1 %}
+                            Hier {{ op_local.strftime('%H:%M') }}
+                        {% else %}
+                            {{ op_local.strftime('%d %b %H:%M') }}
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="timeline-desc">{{ op.compte.numero_compte }} • Par {{ op.utilisateur.nom_utilisateur or 'N/A' }} • Solde après: {{ "%.2f"|format(op.solde_apres) }} TND</div>
+            </div>
+        </div>
+        {% else %}
+        <div style="text-align: center; color: var(--text-secondary); padding: 32px;">
+            Aucune opération récente
+        </div>
+        {% endfor %}
+    </div>
+</div>
