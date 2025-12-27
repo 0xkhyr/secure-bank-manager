@@ -15,6 +15,7 @@ from src.accounts import accounts_bp
 from src.operations import operations_bp
 from src.audit_logger import audit_bp
 from src.users import users_bp
+from src.policies import policies_bp
 from src.dev import dev_bp
 from src.checker import checker_bp
 
@@ -131,6 +132,7 @@ app.register_blueprint(accounts_bp)
 app.register_blueprint(operations_bp)
 app.register_blueprint(audit_bp)
 app.register_blueprint(users_bp)
+app.register_blueprint(policies_bp)
 app.register_blueprint(checker_bp)
 
 # Outils de dev (uniquement en debug/dev)

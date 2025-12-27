@@ -53,6 +53,7 @@
                     <a href="{{ url_for('clients.index') }}" class="{{ 'active' if request.path.startswith(url_for('clients.index')) else '' }}">Clients</a>
                     {% if g.user.role.value in ['admin', 'superadmin'] %}
                         <a href="{{ url_for('users.index') }}" class="{{ 'active' if request.path.startswith(url_for('users.index')) else '' }}">Utilisateurs</a>
+                        <a href="{{ url_for('policies.index') }}" class="{{ 'active' if request.path.startswith(url_for('policies.index')) else '' }}">Politiques</a>
                         <a href="{{ url_for('checker.index') }}" class="{{ 'active' if request.path.startswith(url_for('checker.index')) else '' }}{% if pending_approbations_count and pending_approbations_count > 0 %} has-badge{% endif %}">Approbations{% if pending_approbations_count and pending_approbations_count > 0 %} <span class="badge-pending" aria-hidden="true">{{ pending_approbations_count }}</span><span class="sr-only">{{ pending_approbations_count }} en attente</span>{% endif %}</a>
                         <a href="{{ url_for('audit.index') }}" class="{{ 'active' if request.path.startswith(url_for('audit.index')) else '' }}">Audit</a>
                     {% endif %}

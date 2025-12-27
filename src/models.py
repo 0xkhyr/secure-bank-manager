@@ -428,43 +428,43 @@ class OperationEnAttente(Base):
         return f"<OperationEnAttente(id={self.id}, type='{self.type_operation}', statut='{self.statut.value}')>"
 
 
-class Policy(Base):
+class Politique(Base):
     """
     Table de configuration dynamique pour les politiques.
-    Clé/valeur où `value` peut être un JSON encodé pour des structures complexes.
-    Exemples de clés : 'password.max_age_days', 'rate.withdraw.daily_limit'
+    Clé/valeur où `valeur` peut être un JSON encodé pour des structures complexes.
+    Exemples de clés : 'mot_de_passe.duree_validite_jours', 'rate.retrait.limite_journaliere'
     """
-    __tablename__ = 'policies'
+    __tablename__ = 'politiques'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    key = Column(String(255), unique=True, nullable=False, index=True)
-    value = Column(Text, nullable=False)
+    cle = Column(String(255), unique=True, nullable=False, index=True)
+    valeur = Column(Text, nullable=False)
     type = Column(String(50), nullable=False, default='string')
     description = Column(Text, nullable=True)
     active = Column(Boolean, default=True, nullable=False)
-    created_by = Column(Integer, ForeignKey('utilisateurs.id'), nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    cree_par = Column(Integer, ForeignKey('utilisateurs.id'), nullable=True)
+    cree_le = Column(DateTime, default=datetime.utcnow, nullable=False)
+    modifie_le = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     def __repr__(self):
-        return f"<Policy(key='{self.key}', type='{self.type}', active={self.active})>"
+        return f"<Politique(cle='{self.cle}', type='{self.type}', active={self.active})>"
 
 
-class PolicyHistory(Base):
+class HistoriquePolitique(Base):
     """
     Historique des changements de politique pour audit et rollbacks simples.
     Contient une copie de la valeur et un message de changement.
     """
-    __tablename__ = 'policy_history'
+    __tablename__ = 'historique_politiques'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    policy_id = Column(Integer, ForeignKey('policies.id'), nullable=False)
-    key = Column(String(255), nullable=False)
-    value = Column(Text, nullable=False)
+    politique_id = Column(Integer, ForeignKey('politiques.id'), nullable=False)
+    cle = Column(String(255), nullable=False)
+    valeur = Column(Text, nullable=False)
     type = Column(String(50), nullable=False, default='string')
-    changed_by = Column(Integer, ForeignKey('utilisateurs.id'), nullable=True)
-    changed_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    comment = Column(Text, nullable=True)
+    modifie_par = Column(Integer, ForeignKey('utilisateurs.id'), nullable=True)
+    modifie_le = Column(DateTime, default=datetime.utcnow, nullable=False)
+    commentaire = Column(Text, nullable=True)
 
     def __repr__(self):
-        return f"<PolicyHistory(policy_id={self.policy_id}, key='{self.key}', changed_at='{self.changed_at.isoformat()}')>"
+        return f"<HistoriquePolitique(politique_id={self.politique_id}, cle='{self.cle}', modifie_le='{self.modifie_le.isoformat()}')>"

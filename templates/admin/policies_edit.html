@@ -8,11 +8,11 @@
 <form method="post">
     <div class="mb-3">
         <label class="form-label">Clé</label>
-        <input class="form-control" name="key" value="{{ policy.key if policy else '' }}" disabled>
+        <input class="form-control" name="key" value="{{ policy.cle if policy else '' }}" disabled>
     </div>
     <div class="mb-3">
         <label class="form-label">Valeur</label>
-        <input class="form-control" name="value" value="{{ policy.value if policy else '' }}">
+        <input class="form-control" name="value" value="{{ policy.valeur if policy else '' }}">
     </div>
     <div class="mb-3">
         <label class="form-label">Type</label>
@@ -39,7 +39,7 @@
 <h3>Historique</h3>
 <ul class="list-group">
     {% for h in history %}
-    <li class="list-group-item small">{{ h.changed_at.strftime('%d/%m/%Y %H:%M') }} — {{ h.changed_by }} — {{ h.comment or '' }} — {{ h.value|truncate(120) }}</li>
+    <li class="list-group-item small">{{ h.modifie_le.strftime('%d/%m/%Y %H:%M') }} — {{ h.modifie_par }} — {{ h.commentaire or '' }} — {{ h.valeur|truncate(120) }}</li>
     {% else %}
     <li class="list-group-item small text-muted">Pas d'historique</li>
     {% endfor %}

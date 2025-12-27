@@ -95,6 +95,12 @@ def initialiser_base_donnees():
     # Ajouter les utilisateurs par défaut
     creer_utilisateurs_defaut()
 
+    # Ajouter les politiques par défaut si nécessaire (seed)
+    try:
+        creer_policies_defaut()
+    except Exception as e:
+        print(f"⚠️ Erreur lors du seed des politiques par défaut : {e}")
+
 
 def creer_utilisateurs_defaut():
     """
@@ -193,6 +199,50 @@ def apply_schema_updates():
         else:
             # Nothing to do
             pass
+
+
+# --- Default policy seeding helper ---
+def creer_policies_defaut():
+    """Seed policies with sensible defaults if the policies table is empty.
+    This is intended for initial setup in development and safe for first-time runs.
+    """
+    import json
+    from src.models import Policy, Utilisateur
+    from src.policy import set_policy
+
+    session = obtenir_session()
+    try:
+        nb = session.query(Policy).count()
+        if nb and nb > 0:
+            print("✓ Policies existantes détectées; seed ignoré.")
+            return
+
+        # Determine a changed_by user (prefer superadmin if present)
+        superadmin = session.query(Utilisateur).filter_by(nom_utilisateur='superadmin').first()
+        changed_by = superadmin.id if superadmin else None
+
+        defaults = [
+            ('mot_de_passe.duree_validite_jours', 90, 'int', "Durée de validité d’un mot de passe (jours)"),
+            ('mot_de_passe.historique_compte', 5, 'int', "Nombre de mots de passe à retenir pour éviter réutilisation"),
+            ('mot_de_passe.longueur_min', 8, 'int', "Longueur minimale du mot de passe"),
+            ('session.delai_expiration_secondes', 1800, 'int', "Expiration de session en secondes"),
+            ('retrait.limite_par_operation', 10000, 'int', "Montant maximum par retrait"),
+            ('retrait.limite_journaliere', 20000, 'int', "Limite quotidienne de retrait"),
+            ('operation.utilisateur.max_par_minute', 5, 'int', "Nombre maximum d'opérations par minute par utilisateur"),
+            ('maker_checker.seuil_montant', 5000, 'int', "Montant au dessus duquel la demande est soumise à approbation"),
+            ('mfa.roles_obligatoires', json.dumps(['admin', 'superadmin']), 'json', "Activer MFA pour ces rôles"),
+        ]
+
+        for key, val, typ, desc in defaults:
+            try:
+                # set_policy will handle encoding and history
+                set_policy(key, val, type_=typ, description=desc, changed_by=changed_by, comment='Default policy seed')
+            except Exception as e:
+                print(f"⚠️ Erreur lors du seed de la policy {key}: {e}")
+
+        print("✓ Policies par défaut semées.")
+    finally:
+        session.close()
 
 
 def verifier_connexion():

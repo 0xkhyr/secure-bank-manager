@@ -4,9 +4,9 @@
 For production, use Alembic to generate a proper migration.
 """
 from src.db import engine
-from src.models import Base, Policy, PolicyHistory
+from src.models import Base, Politique, HistoriquePolitique
 
 if __name__ == '__main__':
-    print("Creating policy tables (if they don't exist)...")
+    print("Création des tables de politiques si nécessaire...")
     Base.metadata.create_all(engine)
-    print("Done. If you are running in production, consider creating an Alembic migration instead.")
+    print("Terminé. Pour la production, préférez une migration Alembic.")

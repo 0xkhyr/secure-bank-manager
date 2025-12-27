@@ -6,7 +6,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 
 from src.app import app
 from src.db import obtenir_session
-from src.models import Utilisateur, RoleUtilisateur, Policy
+from src.models import Utilisateur, RoleUtilisateur, Politique
 
 class TestPoliciesAPI(unittest.TestCase):
     @classmethod
@@ -32,7 +32,7 @@ class TestPoliciesAPI(unittest.TestCase):
     def test_create_and_toggle_policy(self):
         session = obtenir_session()
         # Ensure policy not exist
-        p = session.query(Policy).filter_by(key='test.policy.x').first()
+        p = session.query(Politique).filter_by(cle='test.policy.x').first()
         if p:
             session.delete(p)
             session.commit()
@@ -41,9 +41,9 @@ class TestPoliciesAPI(unittest.TestCase):
         resp = self.client.post('/admin/policies/create', data={'key':'test.policy.x','value':'123','type':'int'})
         self.assertEqual(resp.status_code, 302)
 
-        p2 = session.query(Policy).filter_by(key='test.policy.x').first()
+        p2 = session.query(Politique).filter_by(cle='test.policy.x').first()
         self.assertIsNotNone(p2)
-        self.assertEqual(p2.value, '123')
+        self.assertEqual(p2.valeur, '123')
 
         # Toggle
         resp2 = self.client.post(f'/admin/policies/toggle/{p2.id}', follow_redirects=True)

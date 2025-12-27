@@ -11,7 +11,7 @@ from datetime import datetime
 from typing import Any, Optional
 
 from src.db import obtenir_session
-from src.models import Policy, PolicyHistory
+from src.models import Politique, HistoriquePolitique
 from src.audit_logger import log_action
 
 # Cache settings
@@ -24,24 +24,24 @@ _CACHE_LOADED_AT = 0
 def _load_from_db():
     session = obtenir_session()
     try:
-        rows = session.query(Policy).filter_by(active=True).all()
+        rows = session.query(Politique).filter_by(active=True).all()
         data = {}
         for p in rows:
-            # attempt to decode JSON values when type == json
+            # tenter de décoder JSON lorsque type == json
             if p.type == 'json':
                 try:
-                    data[p.key] = json.loads(p.value)
+                    data[p.cle] = json.loads(p.valeur)
                 except Exception:
-                    data[p.key] = p.value
+                    data[p.cle] = p.valeur
             elif p.type == 'int':
                 try:
-                    data[p.key] = int(p.value)
+                    data[p.cle] = int(p.valeur)
                 except Exception:
-                    data[p.key] = p.value
+                    data[p.cle] = p.valeur
             elif p.type == 'bool':
-                data[p.key] = p.value.lower() in ('1', 'true', 'yes', 'on') if isinstance(p.value, str) else bool(p.value)
+                data[p.cle] = p.valeur.lower() in ('1', 'true', 'yes', 'on') if isinstance(p.valeur, str) else bool(p.valeur)
             else:
-                data[p.key] = p.value
+                data[p.cle] = p.valeur
         return data
     finally:
         session.close()
@@ -70,39 +70,39 @@ def set_policy(key: str, value: Any, type_: str = 'string', description: Optiona
     """Create or update a policy and log the change."""
     session = obtenir_session()
     try:
-        # normalize value to string
+        # normaliser la valeur en chaîne
         if isinstance(value, (dict, list)):
-            value_str = json.dumps(value, ensure_ascii=False)
+            valeur_str = json.dumps(value, ensure_ascii=False)
             type_field = 'json'
         else:
-            value_str = str(value)
+            valeur_str = str(value)
             type_field = type_
 
-        policy = session.query(Policy).filter_by(key=key).first()
-        old_value = None
-        if policy:
-            old_value = policy.value
-            policy.value = value_str
-            policy.type = type_field
-            policy.description = description or policy.description
-            policy.updated_at = datetime.utcnow()
+        politique = session.query(Politique).filter_by(cle=key).first()
+        ancienne_valeur = None
+        if politique:
+            ancienne_valeur = politique.valeur
+            politique.valeur = valeur_str
+            politique.type = type_field
+            politique.description = description or politique.description
+            politique.modifie_le = datetime.utcnow()
         else:
-            policy = Policy(key=key, value=value_str, type=type_field, description=description, created_by=changed_by)
-            session.add(policy)
+            politique = Politique(cle=key, valeur=valeur_str, type=type_field, description=description, cree_par=changed_by)
+            session.add(politique)
             session.flush()
 
-        # Append history
-        hist = PolicyHistory(policy_id=policy.id, key=policy.key, value=value_str, type=policy.type, changed_by=changed_by, comment=comment)
+        # Ajouter à l'historique
+        hist = HistoriquePolitique(politique_id=politique.id, cle=politique.cle, valeur=valeur_str, type=politique.type, modifie_par=changed_by, commentaire=comment)
         session.add(hist)
 
         session.commit()
 
         # Audit log
-        details = {"key": key, "old": old_value, "new": value_str}
+        details = {"cle": key, "old": ancienne_valeur, "new": valeur_str}
         if comment:
-            details['comment'] = comment
+            details['commentaire'] = comment
         try:
-            log_action(changed_by, 'POLICY_CHANGE', key, details)
+            log_action(changed_by, 'CHANGEMENT_POLITIQUE', key, details)
         except Exception:
             pass
 

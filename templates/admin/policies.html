@@ -26,13 +26,13 @@
     <tbody>
         {% for p in policies %}
         <tr>
-            <td>{{ p.key }}</td>
-            <td>{{ p.value|truncate(60) }}</td>
+            <td>{{ p.cle }}</td>
+            <td>{{ p.valeur|truncate(60) }}</td>
             <td>{{ p.type }}</td>
             <td>{{ 'Oui' if p.active else 'Non' }}</td>
-            <td class="small text-muted">{{ p.updated_at.strftime('%d/%m/%Y %H:%M') if p.updated_at else '-' }}</td>
+            <td class="small text-muted">{{ p.modifie_le.strftime('%d/%m/%Y %H:%M') if p.modifie_le else '-' }}</td>
             <td>
-                <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('policies.edit', key=p.key) }}">Éditer</a>
+                <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('policies.edit', key=p.cle) }}">Éditer</a>
                 <form method="post" action="{{ url_for('policies.toggle', id=p.id) }}" style="display:inline">
                     <button class="btn btn-sm btn-outline-warning">{{ 'Désactiver' if p.active else 'Activer' }}</button>
                 </form>
