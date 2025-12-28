@@ -8,6 +8,7 @@ from datetime import datetime
 checker_bp = Blueprint('checker', __name__, url_prefix='/approbations')
 
 @checker_bp.route('/')
+@checker_bp.route('')
 @admin_required
 def index():
     """Liste les opérations en attente pour les admins."""

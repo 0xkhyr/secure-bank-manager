@@ -18,7 +18,7 @@ from src.config import Config
 from datetime import datetime, timedelta
 
 # Generic message used to avoid username enumeration
-GENERIC_LOGIN_ERROR = "Échec de l’authentification. Veuillez contacter un administrateur si nécessaire."
+GENERIC_LOGIN_ERROR = "Nom d'utilisateur ou mot de passe invalide."
 
 # Création du Blueprint pour l'authentification
 auth_bp = Blueprint('auth', __name__, url_prefix='/auth')
@@ -78,21 +78,36 @@ def operateur_required(view):
 
 
 # Mapping de permissions basique (role -> set de permissions)
+# Use explicit permission strings so we can grant/revoke in the future. By default,
+# only SUPERADMIN has full wildcard privileges. Admin keeps the typical operator
+# permissions (can be extended later), while policy management is a separate
+# fine-grained permission `policies.manage` which is only granted to SUPERADMIN
+# by default.
 PERMISSION_MAP = {
     RoleUtilisateur.SUPERADMIN.name: {'*'},  # SuperAdmin a toutes les permissions
-    RoleUtilisateur.ADMIN.name: {'*'},
+    RoleUtilisateur.ADMIN.name: {
+        'clients.view', 'clients.create', 'clients.update',
+        'clients.deactivate','clients.reactivate','clients.archive',
+        'accounts.view', 'accounts.create', 'accounts.close',
+        'operations.create', 'operations.view',
+        'audit.view', 'users.manage',
+        'policies.view', 'policies.edit', 'policies.toggle', 'policies.apply'
+    },
     RoleUtilisateur.OPERATEUR.name: {
         'clients.view', 'clients.create', 'clients.update',
+        'clients.deactivate','clients.reactivate',
         'accounts.view', 'accounts.create', 'accounts.close',
         'operations.create', 'operations.view',
         'audit.view'
     },
-    # Fine-grained client administrative permissions (admins/superadmins implicitly have '*')
+    # Fine-grained client administrative permissions placeholders
     'clients.suspend': set(),
     'clients.deactivate': set(),
     'clients.archive': set(),
     'clients.reactivate': set(),
     'clients.manage': set(),
+    # Policy management permission (superadmin-only by default)
+    'policies.manage': set(),
 }
 
 

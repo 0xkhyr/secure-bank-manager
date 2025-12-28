@@ -24,6 +24,91 @@
             border-top-color: #0d6efd !important;
             border-left-color: #0d6efd !important;
         }
+.maintenance-bar {
+  width: 100%;
+  background: #fef7e0;           /* soft warning yellow */
+  border-bottom: 1px solid #f3d98c;
+  color: #3c4043;
+  font-size: 13px;
+}
+
+.maintenance-content {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;        /* center text */
+  position: relative;
+}
+
+.maintenance-text {
+  text-align: center;
+}
+
+.maintenance-close {
+  position: absolute;
+  right: 16px;
+  background: transparent;
+  border: none;
+  color: #5f6368;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.maintenance-close:hover {
+  color: #202124;
+}
+
+/* Panic modal styles */
+.panic-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.55);
+  z-index: 99998;
+  display: none;
+}
+.panic-modal {
+  position: fixed;
+  inset: 0;
+  display: none;
+  z-index: 99999;
+  align-items: center;
+  justify-content: center;
+}
+.panic-modal-dialog {
+  background: white;
+  max-width: 720px;
+  margin: 0 16px;
+  padding: 24px;
+  border-radius: 8px;
+  box-shadow: 0 15px 40px rgba(0,0,0,0.3);
+  text-align: center;
+}
+.panic-modal h2 { margin: 0 0 8px 0; }
+.panic-modal p { margin: 0 0 16px 0; color: #333; }
+.panic-actions { display:flex; justify-content:center; gap:8px; }
+
+
+
+/* Panic mode banner — critical */
+.panic-banner {
+    /* Make banner part of the document flow so it does not overlay the nav */
+    position: relative;
+    width: 100%;
+    padding: 12px 16px;
+
+    background: #d93025; /* Google red */
+    color: #ffffff;
+
+    text-align: center;
+    font-size: 14px;
+    font-weight: 500;
+
+    /* subtle separation from header */
+    box-shadow: 0 2px 0 rgba(0,0,0,0.06);
+}
+
     </style>
 
     <!-- Alpine.js (local vendor, run scripts/install_vendor_assets.sh to populate) -->
@@ -34,8 +119,67 @@
     <script src="{{ url_for('static', filename='vendor/nprogress/nprogress.min.js') }}"></script>
     <!-- NProgress helper (delayed start + fetch wrapper) -->
     <script src="{{ url_for('static', filename='js/nprogress-shim.js') }}"></script>
+
+    {% block head_extra %}{% endblock %}
 </head>
 <body>
+
+
+
+
+
+    {# Global maintenance banner (policy-driven) #}
+{% if MAINTENANCE_MODE %}
+<div class="maintenance-bar" role="status" aria-live="polite">
+  <div class="maintenance-content">
+    {% if g.user and g.user.role.value in ['admin','superadmin'] %}
+      <span class="maintenance-text">
+        <strong>Maintenance (admin)</strong> — {{ MAINTENANCE_MESSAGE }} <span class="badge bg-secondary ms-2">ADMIN VIEW</span>
+      </span>
+    {% else %}
+      <span class="maintenance-text">
+        <strong>Maintenance</strong> — {{ MAINTENANCE_MESSAGE }}
+      </span>
+      <button
+        type="button"
+        class="maintenance-close"
+        aria-label="Close maintenance banner"
+      >
+        ✕
+      </button>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+
+{# Global Panic Mode Banner #}
+{% if PANIC_MODE %}
+<div class="panic-banner" role="alert" aria-live="assertive">
+    <span class="panic-text">
+        <strong>Security Alert</strong> — System temporarily restricted. Contact administration immediately.
+    </span>
+</div>
+{% endif %}
+
+{# Panic modal (policy-driven) #}
+{# Hide the modal on the dedicated /panic page and the login page so users can authenticate #}
+{% if PANIC_MODE and (request.path != url_for('panic')) and not (PANIC_BYPASS) and not (request.path.startswith(url_for('auth.login'))) %}
+  <div class="panic-overlay" id="panicOverlay" aria-hidden="true"></div>
+  <div class="panic-modal" id="panicModal" role="alertdialog" aria-modal="true" aria-labelledby="panicTitle" aria-describedby="panicMessage" data-admin="{% if g.user and g.user.role.value in ['admin','superadmin'] %}1{% else %}0{% endif %}">
+    <div class="panic-modal-dialog">
+      <h2 id="panicTitle">Service Unavailable</h2>
+      <p id="panicMessage">{{ PANIC_MESSAGE or PANIC_MESSAGE }}</p>
+      {% if g.user and g.user.role.value in ['admin','superadmin'] %}
+        <div class="panic-actions">
+          <button id="panicContinue" class="btn btn-sm btn-outline-primary">Continuer en tant qu'admin</button>
+          <a href="{{ url_for('auth.logout') }}" class="btn btn-sm btn-outline-secondary">Se déconnecter</a>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+{% endif %}
+
     <header class="header">
         <div class="header-content">
             <a href="{{ url_for('home') if g.user else url_for('auth.login') }}" class="logo">SecureBank</a>
@@ -51,10 +195,16 @@
                 <div class="nav-left">
                     <a href="{{ url_for('dashboard') }}" class="{{ 'active' if request.path == url_for('dashboard') else '' }}">Tableau de bord</a>
                     <a href="{{ url_for('clients.index') }}" class="{{ 'active' if request.path.startswith(url_for('clients.index')) else '' }}">Clients</a>
-                    {% if g.user.role.value in ['admin', 'superadmin'] %}
+                    {% if has_permission(g.user, 'users.manage') %}
                         <a href="{{ url_for('users.index') }}" class="{{ 'active' if request.path.startswith(url_for('users.index')) else '' }}">Utilisateurs</a>
+                    {% endif %}
+                    {% if has_permission(g.user, 'policies.view') %}
                         <a href="{{ url_for('policies.index') }}" class="{{ 'active' if request.path.startswith(url_for('policies.index')) else '' }}">Politiques</a>
+                    {% endif %}
+                    {% if has_permission(g.user, 'checker.view')  %}
                         <a href="{{ url_for('checker.index') }}" class="{{ 'active' if request.path.startswith(url_for('checker.index')) else '' }}{% if pending_approbations_count and pending_approbations_count > 0 %} has-badge{% endif %}">Approbations{% if pending_approbations_count and pending_approbations_count > 0 %} <span class="badge-pending" aria-hidden="true">{{ pending_approbations_count }}</span><span class="sr-only">{{ pending_approbations_count }} en attente</span>{% endif %}</a>
+                    {% endif %}
+                    {% if has_permission(g.user, 'audit.view') %}
                         <a href="{{ url_for('audit.index') }}" class="{{ 'active' if request.path.startswith(url_for('audit.index')) else '' }}">Audit</a>
                     {% endif %}
                 </div>
@@ -204,6 +354,71 @@
                     NProgress.done();
                 }
             });
+
+            // Maintenance banner persistence (localStorage) — hides dismissed banner until the message changes
+            try {
+                const maintBar = document.querySelector('.maintenance-bar');
+                if (maintBar) {
+                    const textEl = maintBar.querySelector('.maintenance-text');
+                    const msg = textEl ? textEl.textContent.trim() : '';
+                    const key = 'maintenance_dismissed:' + btoa(msg);
+                    if (localStorage.getItem(key)) {
+                        maintBar.style.display = 'none';
+                    }
+                    maintBar.querySelectorAll('.maintenance-close').forEach(btn => {
+                        btn.addEventListener('click', function () {
+                            try { localStorage.setItem(key, '1'); } catch(e) {}
+                            const bar = this.closest('.maintenance-bar');
+                            if (bar) bar.style.display = 'none';
+                        });
+                    });
+                }
+            } catch (e) {
+                // localStorage may be unavailable; fail silently
+            }
+
+            // Panic modal behavior: show modal and overlay; admin can bypass
+            try {
+                const panicModal = document.getElementById('panicModal');
+                const panicOverlay = document.getElementById('panicOverlay');
+                if (panicModal && panicOverlay) {
+                    // Show overlay & modal
+                    panicOverlay.style.display = 'block';
+                    panicModal.style.display = 'flex';
+                    document.body.style.overflow = 'hidden';
+                    panicModal.querySelectorAll('button, a').forEach(el => el.setAttribute('tabindex', '0'));
+
+                    const isAdmin = panicModal.getAttribute('data-admin') === '1';
+                    if (isAdmin) {
+                        const cont = document.getElementById('panicContinue');
+                        if (cont) cont.addEventListener('click', function () {
+                            // register server-side bypass so the modal is not shown on subsequent pages
+                            const tokenMeta = document.querySelector('meta[name="csrf-token"]');
+                            const token = tokenMeta ? tokenMeta.getAttribute('content') : null;
+                            fetch('/panic/bypass', {
+                                method: 'POST',
+                                headers: token ? { 'X-CSRF-Token': token, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({})
+                            }).then(r => {
+                                // hide immediately on success or failure (server may reject non-admins)
+                                panicOverlay.style.display = 'none';
+                                panicModal.style.display = 'none';
+                                document.body.style.overflow = '';
+                                if (r.ok) {
+                                    // Optionally, refresh the page to ensure server knows about bypass on next page
+                                    // window.location.reload();
+                                }
+                            }).catch(() => {
+                                panicOverlay.style.display = 'none';
+                                panicModal.style.display = 'none';
+                                document.body.style.overflow = '';
+                            });
+                        });
+                    }
+                }
+            } catch (e) {
+                // ignore
+            }
         });
 
     function toggleMobileMenu() {
@@ -246,8 +461,8 @@
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 {% for category, message in messages %}
-                    <div class="alert alert-{{ category }}" role="alert">
-                        <span>{{ message }}</span>
+                    <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                        {{ message }}
                         <button type="button" class="btn-close" onclick="this.parentElement.style.opacity='0'; setTimeout(() => this.parentElement.remove(), 300)" aria-label="Close">✕</button>
                     </div>
                 {% endfor %}

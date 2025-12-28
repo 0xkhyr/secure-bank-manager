@@ -468,3 +468,9 @@ class HistoriquePolitique(Base):
 
     def __repr__(self):
         return f"<HistoriquePolitique(politique_id={self.politique_id}, cle='{self.cle}', modifie_le='{self.modifie_le.isoformat()}')>"
+
+# Backwards compatibility aliases for code/tests referencing English names
+# Historically this project used `Policy` / `PolicyHistory` names; we keep aliases
+# so older scripts/tests continue to work while the canonical names are French.
+Policy = Politique
+PolicyHistory = HistoriquePolitique

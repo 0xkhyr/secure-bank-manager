@@ -16,7 +16,8 @@ class TestPoliciesAPI(unittest.TestCase):
         session = obtenir_session()
         admin = session.query(Utilisateur).filter_by(nom_utilisateur='policy_admin').first()
         if not admin:
-            admin = Utilisateur(nom_utilisateur='policy_admin', mot_de_passe_hash='x', role=RoleUtilisateur.ADMIN)
+            # Use SUPERADMIN for policy tests by default (policy management is superadmin-only)
+            admin = Utilisateur(nom_utilisateur='policy_admin', mot_de_passe_hash='x', role=RoleUtilisateur.SUPERADMIN)
             session.add(admin)
             session.commit()
         session.close()

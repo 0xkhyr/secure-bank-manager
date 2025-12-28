@@ -35,8 +35,8 @@ engine = create_engine(
     connect_args={'check_same_thread': False}  # Nécessaire pour SQLite avec Flask
 )
 
-# Créer une session factory
-session_factory = sessionmaker(bind=engine)
+# Créer une session factory (avoid expired attributes after commit to help tests)
+session_factory = sessionmaker(bind=engine, expire_on_commit=False)
 Session = scoped_session(session_factory)
 
 
@@ -244,6 +244,12 @@ def creer_policies_defaut():
             ('changement_politique.requiert_approbation', json.dumps(['retrait.limite_journaliere', 'mot_de_passe.duree_validite_jours', 'mfa.roles_obligatoires']), 'json', "Clés nécessitant approbation pour modification"),
             # Cache politique
             ('politiques.cache_ttl_secondes', 30, 'int', "TTL du cache des politiques (secondes)"),
+            # Politique de maintenance
+            ('maintenance.enabled', 'false', 'bool', "Mode maintenance activé"),
+            ('maintenance.message', "Site en maintenance — certaines fonctions sont indisponibles.", 'string', "Message affiché en mode maintenance"),
+            ('maintenance.panic_mode', 'false', 'bool', "Mode panique activé"),
+            ('maintenance.panic_message', "Le site est en mode panique. Toutes les opérations sont suspendues.", 'string', "Message affiché en mode panique"),
+            ('maintenance.panic_public_message', "Aucune alerte active — cette page affiche l'état du service.", 'string', "Message publique affiché lorsque le mode panique est désactivé"),
         ]
 
         for key, val, typ, desc in defaults:

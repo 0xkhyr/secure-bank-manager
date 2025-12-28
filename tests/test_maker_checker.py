@@ -1,6 +1,6 @@
 from src.db import obtenir_session
-from src.models import Utilisateur, Compte, OperationEnAttente, StatutAttente, RoleUtilisateur
-from src.checker import soumettre_approbation, executer_approbation
+from src.models import Utilisateur, Compte, Operation, OperationEnAttente, StatutAttente, RoleUtilisateur
+from src.checker import soumettre_approbation, executer_approbation, rejeter_approbation, retirer_approbation
 from decimal import Decimal
 
 def test_maker_checker():
@@ -58,9 +58,10 @@ def test_maker_checker():
     
     # --- New test: self-approval should be refused and audited ---
     # Maker is the same as checker
-    demande_self = soumettre_approbation(session, 'RETRAIT_EXCEPTIONNEL', payload, admin.id)
+    admin_fresh = session.query(Utilisateur).filter_by(nom_utilisateur='admin').first()
+    demande_self = soumettre_approbation(session, 'RETRAIT_EXCEPTIONNEL', payload, admin_fresh.id)
     session.commit()
-    success2, msg2 = executer_approbation(demande_self.id, admin.id)
+    success2, msg2 = executer_approbation(demande_self.id, admin_fresh.id)
     print(f"Tentative auto-approbation : {success2} - {msg2}")
     assert success2 is False
     assert "Checker" in msg2 or "Checker'" in msg2 or "4 yeux" in msg2
@@ -82,9 +83,11 @@ def test_maker_checker():
         session.commit()
 
     # --- New test: self-reject should be refused and audited ---
-    demande_reject = soumettre_approbation(session, 'RETRAIT_EXCEPTIONNEL', payload, operateur_id)
+    # Re-query fresh instance for operateur id to avoid detached instances
+    operateur_fresh = session.query(Utilisateur).filter_by(nom_utilisateur='operateur').first()
+    demande_reject = soumettre_approbation(session, 'RETRAIT_EXCEPTIONNEL', payload, operateur_fresh.id)
     session.commit()
-    success_rej, msg_rej = rejeter_approbation(demande_reject.id, operateur_id)
+    success_rej, msg_rej = rejeter_approbation(demande_reject.id, operateur_fresh.id)
     print(f"Tentative auto-rejet : {success_rej} - {msg_rej}")
     assert success_rej is False
     session.expire_all()
@@ -123,7 +126,9 @@ def test_maker_checker():
     # Unauthorized withdraw by someone else should be refused
     demande_unauth = soumettre_approbation(session, 'RETRAIT_EXCEPTIONNEL', payload, operateur_id)
     session.commit()
-    success_unauth, msg_unauth = retirer_approbation(demande_unauth.id, admin.id)
+    # use a fresh admin instance to avoid detached-instance issues
+    admin_fresh = session.query(Utilisateur).filter_by(nom_utilisateur='admin').first()
+    success_unauth, msg_unauth = retirer_approbation(demande_unauth.id, admin_fresh.id)
     print(f"Tentative retrait non autorisée : {success_unauth} - {msg_unauth}")
     assert success_unauth is False
     session.expire_all()

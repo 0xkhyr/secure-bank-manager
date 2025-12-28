@@ -37,6 +37,7 @@ app.config['SESSION_COOKIE_SAMESITE'] = Config.SESSION_COOKIE_SAMESITE
 # Custom Jinja filter to decode JSON properly
 @app.template_filter('decode_json')
 def decode_json_filter(json_string):
+    """Existing filters above..."""
     """Decode JSON string and return it properly formatted with UTF-8"""
     if not json_string:
         return '-'
@@ -107,6 +108,42 @@ def inject_pending_approbations():
         return {}
 
 
+# Inject common policy values into templates (e.g., withdrawal limits)
+@app.context_processor
+def inject_policies():
+    """Expose a small set of commonly-used policy values to templates.
+
+    Keep this minimal — prefer explicit values passed from views for most pages.
+    """
+    try:
+        from src.policy_helpers import get_policy_int, get_policy_bool
+        from src.policy import get_policy
+        return {
+            'RETRAIT_LIMIT': get_policy_int('retrait.limite_journaliere', default=1000),
+            'MAKER_CHECKER_THRESHOLD': get_policy_int('maker_checker.seuil_montant', default=5000),
+            'VELOCITY_ACTIVE': get_policy_bool('velocity.actif', default=False),
+            'VELOCITY_RETRAIT_MAX_PER_MIN': get_policy_int('velocity.retrait.max_par_minute', default=3),
+            'SESSION_TIMEOUT': get_policy_int('session.delai_expiration_secondes', default=1800),
+            'AUDIT_RETENTION_DAYS': get_policy_int('audit.retention_jours', default=365),
+            'POLICY_CACHE_TTL': get_policy_int('politiques.cache_ttl_secondes', default=30),
+            'MFA_ROLES': get_policy('mfa.roles_obligatoires', default=[]),
+            'MAINTENANCE_MODE': get_policy_bool('maintenance.enabled', default=False),
+            'MAINTENANCE_MESSAGE': get_policy('maintenance.message', default="Site en maintenance — certaines fonctions sont indisponibles."),
+            'PANIC_MODE': get_policy_bool('maintenance.panic_mode', default=False),
+            'PANIC_MESSAGE': get_policy('maintenance.panic_message', default="Le site est en mode panique. Toutes les opérations sont suspendues."),
+        }
+    except Exception:
+        # If policies fail to load for any reason, return empty dict to avoid breaking templates
+        return {}
+
+
+@app.context_processor
+def inject_panic_bypass():
+    """Expose whether the current session has requested an admin panic bypass (used to suppress the modal)."""
+    from flask import session
+    return {'PANIC_BYPASS': session.get('panic_bypass', False)}
+
+
 # Rate limiting (Flask-Limiter)
 try:
     from flask_limiter import Limiter
@@ -162,11 +199,34 @@ if csrf is None:
     @app.before_request
     def simple_csrf_protect():
         # Local imports to avoid NameErrors
-        from flask import request, abort
+        from flask import request, abort, g
         # Only check for unsafe methods
         # Allow tests to disable CSRF fallback via app config
         if app.config.get('WTF_CSRF_ENABLED') is False:
             return
+
+        # If panic mode is active, short-circuit early so we return 503 (panic) rather than 400 (CSRF)
+        from src.policy_helpers import get_policy_bool
+        from src.policy import get_policy
+        if get_policy_bool('maintenance.panic_mode', default=False):
+            # Allow static assets and health endpoint
+            if request.path.startswith(app.static_url_path):
+                return
+            if request.endpoint == 'health':
+                return
+            # Allow login page so admins can authenticate
+            if request.endpoint == 'auth.login':
+                return
+            # Allow the panic page itself
+            if request.endpoint == 'panic':
+                return
+            # Admin bypass
+            if getattr(g, 'user', None) and getattr(g.user, 'role', None) and g.user.role.value in ['admin', 'superadmin']:
+                return
+            # For unsafe methods, return 503 immediately
+            if request.method in ("POST", "PUT", "PATCH", "DELETE"):
+                message = get_policy('maintenance.panic_message', default='Service indisponible pour maintenance')
+                abort(503, description=str(message))
 
         if request.method not in ("POST", "PUT", "PATCH", "DELETE"):
             return
@@ -184,6 +244,55 @@ if csrf is None:
         if form_token == token or header_token == token:
             return
         abort(400)
+
+
+    @app.before_request
+    def maintenance_panic_guard():
+        """Controlled panic mode:
+
+        - When `maintenance.panic_mode` is enabled, **all** endpoints are blocked for non-admins.
+        - Admins/superadmins are allowed to proceed normally.
+        - The login page (`auth.login`), static assets and the health endpoint remain accessible so
+          administrators can authenticate and manage the system.
+        - GET requests from non-admins are redirected to a dedicated `/panic` page (503),
+          while unsafe methods return HTTP 503 with the configured panic message.
+        """
+        from flask import request, abort, g, redirect, url_for
+        from src.policy_helpers import get_policy_bool
+        from src.policy import get_policy
+
+        if not get_policy_bool('maintenance.panic_mode', default=False):
+            return
+
+        # Allow static assets and health endpoint
+        if request.path.startswith(app.static_url_path):
+            return
+        if request.endpoint == 'health':
+            return
+
+        # Always allow the login page so admins can sign in (match by endpoint or path)
+        if request.endpoint == 'auth.login' or request.path.startswith(url_for('auth.login')):
+            return
+
+
+        # Allow the panic page itself so we don't loop redirects
+        if request.endpoint == 'panic' or request.path.startswith(url_for('panic')):
+            return
+
+        # Admin/superadmin bypass
+        if getattr(g, 'user', None) and getattr(g.user, 'role', None) and g.user.role.value in ['admin', 'superadmin']:
+            return
+
+        # For anonymous or non-admin users, block access.
+        message = get_policy('maintenance.panic_message', default='Service indisponible pour maintenance')
+
+        # GET requests -> redirect to a friendly panic page (HTML clients)
+        if request.method == 'GET':
+            # Redirect to /panic which returns a 503 page with a message
+            return redirect(url_for('panic'))
+
+        # Other methods -> explicit 503
+        abort(503, description=str(message))
 
 
 # Alias route: top-level /profile forwards to the users.profile view (keeps existing implementation)
@@ -270,6 +379,48 @@ def dashboard():
 def health():
     """Endpoint de santé de l'application"""
     return "OK", 200
+
+
+# Panic page shown to blocked users (returns 503)
+@app.route('/panic')
+def panic():
+    """Human-friendly panic/status page.
+
+    - Accessible at all times.
+    - When `maintenance.panic_mode` is enabled, returns HTTP 503 and shows the panic message.
+    - When disabled, returns HTTP 200 and shows a neutral status message (can be configured via policy `maintenance.panic_public_message`).
+    """
+    from src.policy_helpers import get_policy_bool
+    from src.policy import get_policy
+
+    active = get_policy_bool('maintenance.panic_mode', default=False)
+    if active:
+        message = get_policy('maintenance.panic_message', default="Le site est en mode panique. Toutes les opérations sont suspendues.")
+        status = 503
+    else:
+        message = get_policy('maintenance.panic_public_message', default="Aucune alerte active — cette page affiche l'état du service.")
+        status = 200
+    return render_template('panic.html', message=message, active=active), status
+
+
+@app.route('/panic/bypass', methods=['POST'])
+def panic_bypass():
+    """Set a per-session bypass for admins so they are not shown the panic modal on every page.
+
+    Only an authenticated admin or superadmin may set this.
+    """
+    from flask import session, abort, jsonify
+    from src.auth import login_required
+
+    # Require login and role check
+    # We apply authorization inline so we can return 403 for non-admins
+    if not getattr(g, 'user', None):
+        abort(401)
+    if not getattr(g.user, 'role', None) or g.user.role.value not in ['admin', 'superadmin']:
+        abort(403)
+
+    session['panic_bypass'] = True
+    return jsonify({'ok': True})
 
 # Remove revealing server headers (e.g., Server, X-Powered-By) from responses
 @app.after_request

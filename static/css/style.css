@@ -34,7 +34,7 @@ body {
 .header {
     background: var(--surface);
     border-bottom: 1px solid var(--border);
-    padding: 16px 24px;
+    padding: 4px 18px;
     position: sticky;
     top: 0;
     z-index: 100;

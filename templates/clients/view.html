@@ -52,12 +52,12 @@
 
             <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 20px 0;">
             
-            {# Administrative Management Actions #}
+            {# Gestion du client #}
             {# only show if user has permission #}
         
             {% if g.user is defined and (has_permission(g.user, 'clients.suspend') or has_permission(g.user, 'clients.deactivate') or has_permission(g.user, 'clients.archive') or has_permission(g.user, 'clients.reactivate')) %}
-            <div class="management-actions" role="region" aria-label="Gestion Administrative">
-                <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 12px;">Gestion Administrative</div>
+            <div class="management-actions" role="region" aria-label="Gestion du client">
+                <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 12px;">Gestion du client</div>
                 
                 {% if client.statut.value == 'actif' %}
                     <div style="display: flex; flex-direction: column; gap: 10px;">

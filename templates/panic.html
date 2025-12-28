@@ -1,0 +1,28 @@
+{% extends 'base.html' %}
+
+{% block title %}Service indisponible — Panique{% endblock %}
+
+{% block head_extra %}
+  <meta name="robots" content="noindex, nofollow">
+{% endblock %}
+
+{% block content %}
+  <main class="container" style="padding: 40px 0; text-align:center;">
+    <div class="card" style="max-width:800px; margin: 0 auto; padding: 24px;">
+      {% if active %}
+        <h1>Service temporairement indisponible</h1>
+      {% else %}
+        <h1>État du service</h1>
+      {% endif %}
+
+      <p class="lead">{{ message }}</p>
+      <hr>
+      <!-- if user already logged in not show the login link -->
+       {% if not g.user %}
+      <p>
+        Si vous êtes administrateur, <a href="{{ url_for('auth.login') }}">connectez-vous ici</a> pour gérer l'incident.
+      </p>
+      {% endif %}
+    </div>
+  </main>
+{% endblock %}

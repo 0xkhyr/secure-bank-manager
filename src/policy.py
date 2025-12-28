@@ -22,7 +22,9 @@ _CACHE_LOADED_AT = 0
 
 
 def _load_from_db():
-    session = obtenir_session()
+    # Use a *fresh* non-scoped session to avoid closing the request-scoped session
+    from src.db import session_factory
+    session = session_factory()
     try:
         rows = session.query(Politique).filter_by(active=True).all()
         data = {}
@@ -66,17 +68,92 @@ def invalidate_cache():
         _CACHE_LOADED_AT = 0
 
 
+def valider_politique(key: str, value: Any, type_: str = 'string'):
+    """Valide et normalise une politique selon son type et sa clé.
+
+    Retourne (valeur_normalisee_str, type_field).
+    Lève ValueError en cas d'erreur de validation.
+    """
+    # Normalisation par type
+    if type_ == 'json' or isinstance(value, (dict, list)):
+        # si c'est une chaîne, essayer de parser
+        if isinstance(value, str):
+            try:
+                parsed = json.loads(value)
+            except Exception:
+                raise ValueError("Valeur JSON invalide")
+        else:
+            parsed = value
+        valeur_norm = json.dumps(parsed, ensure_ascii=False)
+        type_field = 'json'
+        python_value = parsed
+    elif type_ == 'int':
+        try:
+            iv = int(value)
+        except Exception:
+            raise ValueError("Valeur entière attendue")
+        valeur_norm = str(iv)
+        type_field = 'int'
+        python_value = iv
+    elif type_ == 'bool':
+        if isinstance(value, bool):
+            bv = value
+        elif isinstance(value, str):
+            bv = value.lower() in ('1', 'true', 'yes', 'on')
+        elif isinstance(value, int):
+            bv = value != 0
+        else:
+            raise ValueError("Valeur booléenne attendue")
+        valeur_norm = 'true' if bv else 'false'
+        type_field = 'bool'
+        python_value = bv
+    else:
+        s = str(value).strip()
+        if len(s) == 0:
+            raise ValueError("La valeur ne peut pas être vide")
+        if len(s) > 2000:
+            raise ValueError("La valeur est trop longue")
+        valeur_norm = s
+        type_field = 'string'
+        python_value = s
+
+    # Validation par clé (règles métiers)
+    if key == 'mot_de_passe.duree_validite_jours':
+        if not isinstance(python_value, int) or python_value < 1 or python_value > 365:
+            raise ValueError('mot_de_passe.duree_validite_jours doit être un entier entre 1 et 365')
+    if key == 'mot_de_passe.longueur_min':
+        if not isinstance(python_value, int) or python_value < 6:
+            raise ValueError('mot_de_passe.longueur_min doit être un entier >= 6')
+    if key in ('retrait.limite_par_operation', 'retrait.limite_journaliere'):
+        if not isinstance(python_value, int) or python_value < 0:
+            raise ValueError(f"{key} doit être un entier positif")
+    if key == 'mfa.roles_obligatoires':
+        if not isinstance(python_value, (list, tuple)):
+            raise ValueError('mfa.roles_obligatoires doit être une liste de rôles')
+        allowed = {'admin', 'superadmin', 'operateur'}
+        for r in python_value:
+            if r not in allowed:
+                raise ValueError(f"Rôle inconnu dans mfa.roles_obligatoires: {r}")
+
+    return valeur_norm, type_field
+
+
 def set_policy(key: str, value: Any, type_: str = 'string', description: Optional[str] = None, changed_by: Optional[int] = None, comment: Optional[str] = None):
     """Create or update a policy and log the change."""
-    session = obtenir_session()
+    # Use a fresh non-scoped session so request-scoped session (g.user) is not closed while handling a request.
+    from src.db import session_factory
+    session = session_factory()
     try:
-        # normaliser la valeur en chaîne
-        if isinstance(value, (dict, list)):
-            valeur_str = json.dumps(value, ensure_ascii=False)
-            type_field = 'json'
-        else:
-            valeur_str = str(value)
-            type_field = type_
+        # Validate and normalize
+        valeur_str, type_field = valider_politique(key, value, type_)
+
+        # Enforce comment when key requires approval
+        try:
+            requis = get_policy('changement_politique.requiert_approbation', [])
+        except Exception:
+            requis = []
+        if isinstance(requis, (list, tuple)) and key in requis and (not comment or comment.strip() == ''):
+            raise ValueError('Modification critique : un commentaire est requis pour cette clé')
 
         politique = session.query(Politique).filter_by(cle=key).first()
         ancienne_valeur = None

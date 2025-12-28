@@ -5,14 +5,15 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h1>Politiques (Configuration)</h1>
-    <form method="post" action="{{ url_for('policies.create') }}" class="d-flex gap-2">
-        <input name="key" placeholder="Clé (ex: password.max_age_days)" class="form-control form-control-sm" required>
-        <input name="value" placeholder="Valeur" class="form-control form-control-sm" required>
-        <button class="btn btn-sm btn-primary">Créer</button>
-    </form>
+    <div>
+        {% if has_permission(g.user, 'policies.create') %}
+            <a class="btn btn-sm btn-primary" href="{{ url_for('policies.create') }}">Créer une politique</a>
+        {% endif %}
+    </div>
 </div>
 
-<table class="table table-striped">
+    <div class="table-responsive shadow-sm">
+    <table class="table table-hover align-middle mb-0 text-nowrap">
     <thead>
         <tr>
             <th>Clé</th>
@@ -27,22 +28,44 @@
         {% for p in policies %}
         <tr>
             <td>{{ p.cle }}</td>
-            <td>{{ p.valeur|truncate(60) }}</td>
+            <td>{{ p.valeur|truncate(30) }}</td>
             <td>{{ p.type }}</td>
             <td>{{ 'Oui' if p.active else 'Non' }}</td>
             <td class="small text-muted">{{ p.modifie_le.strftime('%d/%m/%Y %H:%M') if p.modifie_le else '-' }}</td>
             <td>
-                <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('policies.edit', key=p.cle) }}">Éditer</a>
-                <form method="post" action="{{ url_for('policies.toggle', id=p.id) }}" style="display:inline">
-                    <button class="btn btn-sm btn-outline-warning">{{ 'Désactiver' if p.active else 'Activer' }}</button>
-                </form>
+                {% if has_permission(g.user, 'policies.edit') %}
+                    <button type="button" class="btn btn-sm btn-success px-3 btn-decision btn-edit" data-href="{{ url_for('policies.edit', key=p.cle) }}">Éditer</button>
+                {% endif %}
+                {% if has_permission(g.user, 'policies.toggle') %}
+                    <form method="post" action="{{ url_for('policies.toggle', id=p.id) }}" style="display:inline">
+                        <button class="btn btn-sm btn-outline-danger btn-danger-soft px-3 btn-decision">{{ 'Désactiver' if p.active else 'Activer' }}</button>
+                    </form>
+                {% endif %}
             </td>
         </tr>
         {% endfor %}
     </tbody>
 </table>
 
+{% if has_permission(g.user, 'policies.apply') %}
 <form method="post" action="{{ url_for('policies.apply_now') }}">
     <button class="btn btn-sm btn-secondary">Appliquer maintenant (recharger cache)</button>
 </form>
+{% endif %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.btn-edit').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var href = this.dataset && this.dataset.href;
+            if (href) {
+                window.location = href;
+            }
+        });
+    });
+});
+</script>
+{% endblock %}
+
 {% endblock %}

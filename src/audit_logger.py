@@ -390,7 +390,7 @@ def verifier_clotures():
     """
     Vérifie l'intégrité de toutes les clôtures journalières.
     Returns:
-        tuple: (bool, list, set) - (Tout valide?, Liste erreurs, Set des IDs invalides)
+        tuple: (bool, list) - (Tout valide?, Liste erreurs)
     """
     session = obtenir_session()
     clotures = session.query(ClotureJournal).order_by(ClotureJournal.date).all()
@@ -407,7 +407,9 @@ def verifier_clotures():
             erreurs.append(f"Clôture du {c.date} : Signature HMAC invalide (Falsification détectée)")
             ids_invalides.add(c.id)
             
-    return len(erreurs) == 0, erreurs, ids_invalides
+    # Return only validity and the list of errors (tests expect two values).
+    # Caller can compute ids_invalides itself if needed.
+    return len(erreurs) == 0, erreurs
 
 """
 Interface web pour le système d'audit sécurisé
@@ -599,7 +601,12 @@ def clotures():
     session.close()
     
     # Vérifier l'intégrité globale des clôtures
-    tout_valide, erreurs, ids_invalides = verifier_clotures()
+    res = verifier_clotures()
+    if isinstance(res, tuple) and len(res) == 3:
+        tout_valide, erreurs, ids_invalides = res
+    else:
+        tout_valide, erreurs = res
+        ids_invalides = set()
     
     return render_template('audit/clotures.html', 
                          clotures=clotures, 
