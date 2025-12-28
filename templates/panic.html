@@ -17,7 +17,6 @@
 
       <p class="lead">{{ message }}</p>
       <hr>
-      <!-- if user already logged in not show the login link -->
        {% if not g.user %}
       <p>
         Si vous êtes administrateur, <a href="{{ url_for('auth.login') }}">connectez-vous ici</a> pour gérer l'incident.

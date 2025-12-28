@@ -1,0 +1,30 @@
+{# Panic modal (hide on dedicated pages like /panic and login) #}
+{% if PANIC_MODE and (request.endpoint != 'panic') and not (PANIC_BYPASS) and (request.endpoint != 'auth.login') %}
+<div class="panic-overlay" id="panicOverlay" aria-hidden="true"></div>
+<div
+  class="panic-modal"
+  id="panicModal"
+  role="alertdialog"
+  aria-modal="true"
+  aria-labelledby="panicTitle"
+  aria-describedby="panicMessage"
+  data-admin="{% if g.user and g.user.role.value in ['admin','superadmin'] %}1{% else %}0{% endif %}"
+>
+  <div class="panic-modal-dialog">
+    <h2 id="panicTitle">Service Unavailable</h2>
+    <p id="panicMessage">{{ PANIC_MESSAGE or PANIC_MESSAGE }}</p>
+    {% if g.user and g.user.role.value in ['admin','superadmin'] %}
+    <div class="panic-actions">
+      <button id="panicContinue" class="btn btn-sm btn-outline-primary">
+        Continuer en tant qu'admin
+      </button>
+      <a
+        href="{{ url_for('auth.logout') }}"
+        class="btn btn-sm btn-outline-secondary"
+        >Se déconnecter</a
+      >
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endif %}

@@ -90,24 +90,23 @@ PERMISSION_MAP = {
         'clients.deactivate','clients.reactivate','clients.archive',
         'accounts.view', 'accounts.create', 'accounts.close',
         'operations.create', 'operations.view',
-        'audit.view', 'users.manage',
-        'policies.view', 'policies.edit', 'policies.toggle', 'policies.apply'
+        'audit.view', 'users.view', 'users.create', 'users.update', 'users.deactivate', 'users.reactivate',
+        'policies.view', 'policies.edit', 'policies.toggle', 'policies.apply',
+        'approbations.view', 'approbations.approve', 'approbations.reject'
     },
     RoleUtilisateur.OPERATEUR.name: {
         'clients.view', 'clients.create', 'clients.update',
         'clients.deactivate','clients.reactivate',
         'accounts.view', 'accounts.create', 'accounts.close',
-        'operations.create', 'operations.view',
-        'audit.view'
+        'operations.create', 'operations.view'
     },
     # Fine-grained client administrative permissions placeholders
     'clients.suspend': set(),
     'clients.deactivate': set(),
     'clients.archive': set(),
     'clients.reactivate': set(),
-    'clients.manage': set(),
     # Policy management permission (superadmin-only by default)
-    'policies.manage': set(),
+    'policies.history': set(),
 }
 
 

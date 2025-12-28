@@ -34,7 +34,7 @@ body {
 .header {
     background: var(--surface);
     border-bottom: 1px solid var(--border);
-    padding: 4px 18px;
+    padding: 8px 18px;
     position: sticky;
     top: 0;
     z-index: 100;
@@ -325,7 +325,7 @@ body.menu-open .mobile-menu-toggle {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 20px;
+    padding: 12px;
     border-bottom: 1px solid var(--border);
 }
 

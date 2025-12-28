@@ -1,0 +1,8 @@
+{# Global Panic Mode Banner (shows a short, non-sensitive alert) #}
+{% if PANIC_MODE %}
+<div class="panic-banner" role="alert" aria-live="assertive">
+    <span class="panic-text">
+        <strong>Alerte de sécurité</strong> — Système temporairement restreint. Contactez immédiatement l'administration.
+    </span>
+</div>
+{% endif %}

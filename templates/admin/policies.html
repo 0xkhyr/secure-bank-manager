@@ -3,69 +3,95 @@
 {% block title %}Politiques - SecureBank{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h1>Politiques (Configuration)</h1>
+<div class="card mb-4 shadow-sm">
+  <div class="card-body d-flex justify-content-between align-items-center">
     <div>
-        {% if has_permission(g.user, 'policies.create') %}
-            <a class="btn btn-sm btn-primary" href="{{ url_for('policies.create') }}">Créer une politique</a>
-        {% endif %}
+      <h1 class="h5 mb-0">Politiques (Configuration)</h1>
+      <small class="text-muted d-block">Gérez les politiques de configuration de l'application</small>
     </div>
+    <div class="d-flex align-items-center gap-2">
+      <input id="policySearch" class="form-control form-control-sm" placeholder="Rechercher une clé ou une valeur..." style="min-width:220px;" />
+      {% if has_permission(g.user, 'policies.create') %}
+        <a class="btn btn-sm btn-primary" href="{{ url_for('policies.create') }}">Créer une politique</a>
+      {% endif %}
+    </div>
+  </div>
 </div>
 
-    <div class="table-responsive shadow-sm">
-    <table class="table table-hover align-middle mb-0 text-nowrap">
-    <thead>
-        <tr>
-            <th>Clé</th>
-            <th>Valeur</th>
-            <th>Type</th>
-            <th>Active</th>
-            <th>Dernière modification</th>
-            <th>Actions</th>
-        </tr>
+<div class="table-responsive shadow-sm">
+  <table class="table table-hover align-middle mb-0 text-nowrap" id="policiesTable">
+    <thead class="table-light">
+      <tr>
+        <th style="width:28%">Clé</th>
+        <th style="width:30%">Valeur</th>
+        <th style="width:8%">Type</th>
+        <th style="width:8%">Active</th>
+        <th style="width:12%">Dernière modification</th>
+        <th style="width:6%">Actions</th>
+      </tr>
     </thead>
     <tbody>
-        {% for p in policies %}
-        <tr>
-            <td>{{ p.cle }}</td>
-            <td>{{ p.valeur|truncate(30) }}</td>
-            <td>{{ p.type }}</td>
-            <td>{{ 'Oui' if p.active else 'Non' }}</td>
-            <td class="small text-muted">{{ p.modifie_le.strftime('%d/%m/%Y %H:%M') if p.modifie_le else '-' }}</td>
-            <td>
-                {% if has_permission(g.user, 'policies.edit') %}
-                    <button type="button" class="btn btn-sm btn-success px-3 btn-decision btn-edit" data-href="{{ url_for('policies.edit', key=p.cle) }}">Éditer</button>
+      {% for p in policies %}
+      <tr data-key="{{ p.cle | lower }}" data-value="{{ (p.valeur or '') | lower }}">
+        {% set _raw = (p.valeur or '') %}
+        {% set _needs_modal = (p.type == 'json') or (p.type == 'string') %}
+        <td><code class="policy-key">{{ p.cle }}</code></td>
+        <td>
+          {% if p.type in ['bool', 'boolean'] %}
+            {% set _val = _raw|string %}
+            {% if _val in ['True','true','1','yes','on'] %}
+              <span class="badge bg-success">True</span>
+            {% else %}
+              <span class="badge bg-secondary">False</span>
+            {% endif %}
+          {% elif p.type in ['int', 'integer', 'number'] %}
+            <code class="policy-value small">{{ _raw }}</code>
+          {% endif %}
+
+          {% if _needs_modal %}
+            <button type="button" class="btn btn-sm btn-outline-secondary view-value ms-2" data-key="{{ p.cle }}" data-value="{{ _raw|e }}" title="Voir">Voir details</button>
+          {% endif %}
+        </td> 
+        <td><span class="badge bg-secondary">{{ p.type }}</span></td>
+        <td>
+          {% if p.active %}
+            <span class="badge bg-success">Oui</span>
+          {% else %}
+            <span class="badge bg-secondary">Non</span>
+          {% endif %}
+        </td>
+        <td class="small text-muted">{{ p.modifie_le.strftime('%d/%m/%Y %H:%M') if p.modifie_le else '-' }}</td>
+        <td>
+          <div class="btn-group" role="group">
+            {% if has_permission(g.user, 'policies.edit') %}
+              <button type="button" class="btn btn-sm btn-outline-primary btn-edit" data-href="{{ url_for('policies.edit', key=p.cle) }}" title="Éditer"><i class="bi bi-pencil"></i></button>
+            {% endif %}
+            {% if has_permission(g.user, 'policies.toggle') %}
+              <form method="post" action="{{ url_for('policies.toggle', id=p.id) }}" style="display:inline">
+                {% if p.active %}
+                  <button class="btn btn-sm btn-outline-danger btn-danger-soft px-3 btn-decision" title="Désactiver">Désactiver</button>
+                {% else %}
+                  <button class="btn btn-sm btn-outline-success" title="Activer">Activer</button>
                 {% endif %}
-                {% if has_permission(g.user, 'policies.toggle') %}
-                    <form method="post" action="{{ url_for('policies.toggle', id=p.id) }}" style="display:inline">
-                        <button class="btn btn-sm btn-outline-danger btn-danger-soft px-3 btn-decision">{{ 'Désactiver' if p.active else 'Activer' }}</button>
-                    </form>
-                {% endif %}
-            </td>
-        </tr>
-        {% endfor %}
+              </form>
+            {% endif %}
+          </div> 
+        </td>
+      </tr>
+      {% endfor %}
     </tbody>
-</table>
+  </table>
+</div>
 
 {% if has_permission(g.user, 'policies.apply') %}
-<form method="post" action="{{ url_for('policies.apply_now') }}">
-    <button class="btn btn-sm btn-secondary">Appliquer maintenant (recharger cache)</button>
-</form>
+  <form method="post" action="{{ url_for('policies.apply_now') }}" class="mt-3">
+      <button class="btn btn-sm btn-secondary">Appliquer maintenant (recharger cache)</button>
+  </form>
 {% endif %}
 
-{% block scripts %}
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    document.querySelectorAll('.btn-edit').forEach(function(btn) {
-        btn.addEventListener('click', function() {
-            var href = this.dataset && this.dataset.href;
-            if (href) {
-                window.location = href;
-            }
-        });
-    });
-});
-</script>
-{% endblock %}
+{# View Value Modal (shared component) #}
+{% include 'components/modals/view_value.html' %}
+
+{# No inline scripts here — main.js will handle search & edit clicks #}
 
 {% endblock %}

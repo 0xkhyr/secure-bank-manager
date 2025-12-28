@@ -44,36 +44,30 @@
                         </td>
                         <td class="small text-muted">{{ demande.cree_le.strftime('%d/%m/%Y %H:%M') }}</td>
                         <td>
-                            <button type="button" class="btn btn-sm btn-outline-info" onclick="toggleDetails('details-{{ demande.id }}')">
-                                Voir Payload
+                            <button type="button" class="btn btn-sm btn-outline-info view-value btn-mobile-icon" data-key="Payload #{{ demande.id }}" data-value="{{ demande.payload | e }}" title="Voir Payload">
+                                <i class="bi bi-eye"></i><span class="label ms-1 d-none d-sm-inline">Voir</span>
                             </button>
                         </td>
                         <td class="text-end px-4">
                             <div class="d-flex justify-content-end gap-2">
                                 {% if g.user and demande.cree_par_id == g.user.id %}
-                                    <button type="button" class="btn btn-sm btn-danger px-3 btn-decision" data-id="{{ demande.id }}" data-action="withdraw">
-                                        <i class="bi bi-x-lg"></i> Retirer
+                                    <button type="button" class="btn btn-sm btn-danger px-3 btn-decision btn-mobile-icon" data-id="{{ demande.id }}" data-action="withdraw" title="Retirer">
+                                        <i class="bi bi-x-lg"></i><span class="label ms-1 d-none d-sm-inline">Retirer</span>
                                     </button>
                                 {% else %}
-                                    <button type="button" class="btn btn-sm btn-success px-3 btn-decision" 
-                                        data-id="{{ demande.id }}" data-action="approve">
-                                        <i class="bi bi-check-lg"></i> Approuver
+                                    <button type="button" class="btn btn-sm btn-success px-3 btn-decision btn-mobile-icon" 
+                                        data-id="{{ demande.id }}" data-action="approve" title="Approuver">
+                                        <i class="bi bi-check-lg"></i><span class="label ms-1 d-none d-sm-inline">Approuver</span>
                                     </button>
-                                    <button type="button" class="btn btn-sm btn-outline-danger btn-danger-soft px-3 btn-decision"
-                                        data-id="{{ demande.id }}" data-action="reject">
-                                        <i class="bi bi-x-lg"></i> Rejeter
+                                    <button type="button" class="btn btn-sm btn-outline-danger btn-danger-soft px-3 btn-decision btn-mobile-icon"
+                                        data-id="{{ demande.id }}" data-action="reject" title="Rejeter">
+                                        <i class="bi bi-x-lg"></i><span class="label ms-1 d-none d-sm-inline">Rejeter</span>
                                     </button>
                                 {% endif %}
                             </div>
                         </td>
                     </tr>
-                    <tr class="collapse" id="details-{{ demande.id }}">
-                        <td colspan="6" class="bg-light-subtle px-4 py-3">
-                            <div class="p-3 bg-white rounded border small">
-                                <pre class="mb-0"><code>{{ demande.payload | tojson(indent=2) }}</code></pre>
-                            </div>
-                        </td>
-                    </tr>
+
                     {% else %}
                     <tr>
                         <td colspan="6" class="text-center py-5 text-muted">
@@ -86,6 +80,8 @@
             </table>
         </div>
     {% include 'components/management_modal.html' %}
+    {# Shared view modal for payload preview #}
+    {% include 'components/modals/view_value.html' %}
 {% endblock %}
 
 {% block scripts %}

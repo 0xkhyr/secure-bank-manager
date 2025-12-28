@@ -10,7 +10,7 @@
     </div>
 </div>
 
-<div class="row">
+<div class="row swap-on-mobile">
     <div class="col-md-8 mb-4">
         <div class="card shadow-sm">
             <div class="card-body">
@@ -30,8 +30,18 @@
 
                     <div class="mb-3">
                         <label class="form-label">Valeur</label>
-                        <input class="form-control" name="value" value="{{ policy.valeur if policy else '' }}" placeholder="Valeur de la politique">
-                        <div class="form-text">Exemple : 90, true, ["admin","superadmin"], etc.</div>
+                        <div id="policyValueContainer">
+                            <textarea id="policyValueTextarea" name="value" class="form-control" rows="4" placeholder="Valeur">{{ policy.valeur if policy else '' }}</textarea>
+                            <input id="policyValueNumber" name="value" type="number" class="form-control" style="display:none" placeholder="Valeur numérique">
+                            <div id="policyValueBool" class="form-check form-switch" style="display:none">
+                                <input class="form-check-input" type="checkbox" id="policyValueCheckbox" name="value" value="true">
+                                <label class="form-check-label" for="policyValueCheckbox">True</label>
+                            </div>
+                            <!-- Fallback hidden false for unchecked checkbox (placed after checkbox so checked=true takes precedence) -->
+                            <input type="hidden" id="policyValueHidden" name="value" value="{{ policy.valeur if policy else '' }}">
+                        </div>
+                        <div class="form-text">Exemple : 90, true, ["admin","superadmin"], etc. <button id="formatJsonBtn" type="button" class="btn btn-sm btn-outline-secondary ms-2" style="display:none">Formater JSON</button></div>
+                        <div class="invalid-feedback d-none" id="policyValueError"></div>
                     </div>
 
                     <div class="row">
@@ -65,7 +75,7 @@
 
                     <div class="d-flex gap-2">
                         <button class="btn btn-primary" type="submit">Sauvegarder</button>
-                        <a class="btn btn-outline-secondary" href="{{ url_for('policies.index') }}">Annuler</a>
+                        <button type="button" class="btn btn-outline-secondary btn-edit" data-href="{{ url_for('policies.index') }}">Annuler</button>
                         {% if has_permission(g.user, 'policies.toggle') %}
                         <form method="post" action="{{ url_for('policies.toggle', id=policy.id) }}" style="display:inline">
                             <button class="btn btn-outline-danger" type="submit">{{ 'Désactiver' if policy and policy.active else 'Activer' }}</button>
@@ -87,6 +97,7 @@
         </div>
     </div>
 
+    {% if has_permission(g.user, 'policies.history') %}
     <div class="col-md-4 mb-4">
         <div class="card shadow-sm">
             <div class="card-header">
@@ -148,5 +159,6 @@
             </script>
         </div>
     </div>
+    {% endif %}
 </div>
 {% endblock %}

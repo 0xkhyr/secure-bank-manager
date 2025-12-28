@@ -2,14 +2,14 @@ from flask import Blueprint, render_template, redirect, url_for, flash, g, reque
 from src.db import obtenir_session
 from src.models import OperationEnAttente, StatutAttente, Journal, RoleUtilisateur
 from src.audit_logger import log_action
-from src.auth import admin_required, login_required
+from src.auth import admin_required, login_required, permission_required, has_permission
 from datetime import datetime
 
 checker_bp = Blueprint('checker', __name__, url_prefix='/approbations')
 
 @checker_bp.route('/')
 @checker_bp.route('')
-@admin_required
+@permission_required('approbations.view')
 def index():
     """Liste les opérations en attente pour les admins."""
     session = obtenir_session()
@@ -38,19 +38,28 @@ def mes():
     return render_template('checker/mes.html', demandes=demandes)
 
 @checker_bp.route('/decider/<int:id>', methods=('POST',))
-@admin_required
+@permission_required('approbations.view')
 def decider(id):
     """Approuve ou rejette une demande."""
     action = request.form.get('action')
     raison = request.form.get('raison')
     commentaire = request.form.get('commentaire')
     admin_id = g.user.id
-    
+
+    # Enforce per-action permissions
     if action == 'approve':
+        if not has_permission(g.user, 'approbations.approve'):
+            log_action(admin_id, 'ACCES_REFUSE', 'approbations.approve', {'path': request.path})
+            flash("Accès refusé : privilèges insuffisants pour approuver.", 'danger')
+            return redirect(url_for('checker.index'))
         success, message = executer_approbation(id, admin_id, raison, commentaire)
         category = 'success' if success else 'danger'
         flash(message, category)
     elif action == 'reject':
+        if not has_permission(g.user, 'approbations.reject'):
+            log_action(admin_id, 'ACCES_REFUSE', 'approbations.reject', {'path': request.path})
+            flash("Accès refusé : privilèges insuffisants pour rejeter.", 'danger')
+            return redirect(url_for('checker.index'))
         success, message = rejeter_approbation(id, admin_id, raison, commentaire)
         flash(message, 'info' if success else 'danger')
         
@@ -79,8 +88,8 @@ def soumettre_approbation(session, type_operation, payload, user_id):
     session.flush() # Pour avoir l'ID avant le commit final si besoin
     
     # Log d'audit de la soumission
-    log_action(user_id, f"SOUMISSION_APPROBATION", type_operation, 
-               {"demande_id": nouvelle_demande.id})
+    details = {"demande_id": nouvelle_demande.id, "payload": _sanitize_payload(payload)}
+    log_action(user_id, "SOUMISSION_APPROBATION", type_operation, details)
                
     return nouvelle_demande
 
@@ -197,6 +206,33 @@ def _dispatcher_execution(session, demande, admin_id):
         return False, "Action non implémentée"
         
     return False, "Type d'opération inconnu"
+
+def _mask_partial(value, keep=4, placeholder='*'):
+    s = str(value)
+    if len(s) <= keep:
+        return placeholder * len(s)
+    return placeholder * (len(s) - keep) + s[-keep:]
+
+
+def _sanitize_payload(payload, redact_keys=None, max_len=1000):
+    """Return a payload summary safe for audit logs with partial masking for sensitive fields."""
+    import json
+    redact_keys = set(redact_keys or ('numero_compte','cin','card_number','ssn','token'))
+    try:
+        p = dict(payload) if isinstance(payload, dict) else {'value': payload}
+        for k in list(p.keys()):
+            try:
+                if k in redact_keys:
+                    p[k] = _mask_partial(p[k], keep=4)
+                else:
+                    v = p[k]
+                    s = json.dumps(v, ensure_ascii=False) if not isinstance(v, (str,int,float,bool)) else str(v)
+                    p[k] = (s[:max_len] + '...') if len(s) > max_len else s
+            except Exception:
+                p[k] = '[REDACTED]'
+        return p
+    except Exception:
+        return {'summary': str(payload)[:max_len]}
 
 
 def retirer_approbation(approbation_id, user_id, raison=None, commentaire=None):

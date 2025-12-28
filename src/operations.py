@@ -211,7 +211,30 @@ def effectuer_operation(compte_id, montant, type_op, user_id, description="", va
 
         montant = Decimal(str(montant))
         solde_avant = compte.solde
-        
+
+        # Velocity / rate-limit checks (DB-backed)
+        try:
+            from src.policy_helpers import get_policy_bool, get_policy_int, get_policy
+            from datetime import timedelta
+            if type_op == TypeOperation.RETRAIT and valide_par is None and get_policy_bool('velocity.actif', default=False):
+                methode = get_policy('velocity.methode', default='db')
+                if methode == 'db':
+                    limit = get_policy_int('velocity.retrait.max_par_minute', default=None)
+                    if limit is not None and limit > 0:
+                        cutoff = datetime.utcnow() - timedelta(seconds=60)
+                        recent_count = session.query(Operation).filter(
+                            Operation.utilisateur_id == user_id,
+                            Operation.type_operation == TypeOperation.RETRAIT,
+                            Operation.date_operation >= cutoff
+                        ).count()
+                        if recent_count >= int(limit):
+                            # Log and reject
+                            log_action(user_id, 'VELOCITY_BLOCK', f"Compte {compte.numero_compte}", {"limit": limit, "recent": recent_count})
+                            return False, "Trop de retraits effectués récemment (limite de fréquence atteinte)."
+        except Exception:
+            # Fail-open: if the velocity check itself fails, do not block operations
+            pass
+
         if type_op == TypeOperation.DEPOT:
             compte.solde += montant
         elif type_op == TypeOperation.RETRAIT:
