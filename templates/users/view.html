@@ -98,7 +98,7 @@
                     </h3>
                     <div style="background: #f3f4f6; padding: 12px; border-radius: 4px; margin-bottom: 12px;">
                         <div style="font-size: 13px; font-weight: 500; color: #374151; margin-bottom: 4px;">
-                            📋 Désactivation permanente
+                           Désactivation permanente
                         </div>
                         <div style="font-size: 12px; color: #6b7280;">
                             Utilisez cette action pour une décision administrative permanente :
@@ -112,9 +112,9 @@
                     </div>
                     <p style="color: var(--text-secondary); margin-bottom: 12px; font-size: 14px;">
                         {% if user.is_active %}
-                            ⚠️ L'utilisateur ne pourra plus se connecter tant que le compte est désactivé.
+                            L'utilisateur ne pourra plus se connecter tant que le compte est désactivé.
                         {% else %}
-                            ✅ L'utilisateur pourra à nouveau se connecter après réactivation.
+                            L'utilisateur pourra à nouveau se connecter après réactivation.
                         {% endif %}
                     </p>
                     <form method="post" action="{{ url_for('users.toggle_active', id=user.id) }}">
@@ -132,7 +132,7 @@
                     
                     <div style="background: #fef3c7; padding: 12px; border-radius: 4px; margin-bottom: 12px;">
                         <div style="font-size: 13px; font-weight: 500; color: #92400e; margin-bottom: 4px;">
-                            🔒 Verrouillage de sécurité
+                            Verrouillage de sécurité
                         </div>
                         <div style="font-size: 12px; color: #78350f;">
                             Utilisez cette action pour une restriction temporaire :
@@ -148,7 +148,7 @@
                     {% if user.verrouille_jusqu_a and user.verrouille_jusqu_a > now %}
                         <div style="background: #fee2e2; padding: 12px; border-radius: 4px; margin-bottom: 12px; border-left: 4px solid #dc2626;">
                             <div style="font-size: 13px; font-weight: 500; color: #991b1b; margin-bottom: 8px;">
-                                🔐 Compte actuellement verrouillé
+                                Compte actuellement verrouillé
                             </div>
                             <div style="font-size: 12px; color: #7f1d1d; line-height: 1.6;">
                                 <div><strong>Jusqu'au:</strong> {{ lock_time_local.strftime('%d/%m/%Y à %H:%M') }}</div>
@@ -165,7 +165,7 @@
                         </div>
                         <form method="post" action="{{ url_for('users.unlock_account', id=user.id) }}">
                             <button type="submit" class="btn" style="background: #10b981; color: white;">
-                                🔓 Déverrouiller maintenant
+                                Déverrouiller maintenant
                             </button>
                         </form>
                     {% else %}
@@ -186,7 +186,7 @@
                                 <input type="text" id="raison" name="raison" placeholder="Ex: Enquête activité suspecte" style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 4px;">
                             </div>
                             <button type="submit" class="btn" style="background: #dc2626; color: white;">
-                                🔒 Verrouiller temporairement
+                                Verrouiller temporairement
                             </button>
                         </form>
                     {% endif %}
@@ -197,7 +197,7 @@
                     <h3 style="font-size: 16px; font-weight: 500; margin-bottom: 8px;">Réinitialiser le mot de passe</h3>
                     <div style="background: #eff6ff; padding: 12px; border-radius: 4px; margin-bottom: 12px;">
                         <div style="font-size: 13px; font-weight: 500; color: #1e40af; margin-bottom: 4px;">
-                            🔑 Réinitialisation sécurisée
+                            Réinitialisation sécurisée
                         </div>
                         <div style="font-size: 12px; color: #1e3a8a;">
                             Définir un nouveau mot de passe pour cet utilisateur. L'utilisateur devra utiliser ce nouveau mot de passe lors de sa prochaine connexion.

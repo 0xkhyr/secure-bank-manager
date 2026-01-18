@@ -476,6 +476,7 @@ def profile():
         'id': user.id,
         'nom_utilisateur': user.nom_utilisateur,
         'display_name': user.display_name,
+        'mfa_enabled': user.mfa_enabled,
         'date_creation': user.date_creation + timedelta(hours=Config.TIMEZONE_OFFSET_HOURS) if user.date_creation else None,
         'derniere_connexion': user.derniere_connexion + timedelta(hours=Config.TIMEZONE_OFFSET_HOURS) if user.derniere_connexion else None
     })()

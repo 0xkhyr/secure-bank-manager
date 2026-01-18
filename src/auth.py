@@ -8,6 +8,10 @@ Ce module gère :
 """
 
 import functools
+import pyotp
+import io
+import base64
+import qrcode
 from flask import (
     Blueprint, flash, g, redirect, render_template, request, session, url_for
 )
@@ -282,11 +286,29 @@ def login():
                     log_action(user_id_local, "DEVERROUILLAGE_AUTO", "Système",
                               {"nom_utilisateur": username, "user_id": user_id_local, "raison": "expiration_lockout"})
 
-                # Audit - connexion réussie
+                # Audit - connexion réussie (étape 1)
                 from src.audit_logger import log_action
-                log_action(user_id_local, "CONNEXION", "Système", {"nom_utilisateur": username, "user_id": user_id_local})
+                log_action(user_id_local, "CONNEXION_STEP1", "Système", {"nom_utilisateur": username, "user_id": user_id_local})
 
-                # Set session to mark user as logged in
+                # Vérifier si MFA est activé ou obligatoire pour ce rôle
+                from src.policy_helpers import get_policy
+                mfa_roles = get_policy('mfa.roles_obligatoires', default=[])
+                role_name = user.role.value if hasattr(user.role, 'value') else str(user.role)
+                
+                mfa_required = user.mfa_enabled or (role_name in mfa_roles)
+
+                if mfa_required:
+                    if not user.mfa_enabled:
+                        # MFA obligatoire mais pas encore configuré
+                        session['mfa_setup_user_id'] = user_id_local
+                        flash("La double authentification est obligatoire pour votre rôle. Veuillez la configurer.", "warning")
+                        return redirect(url_for('auth.mfa_setup'))
+                    
+                    # MFA activé et configuré : demander le code
+                    session['mfa_user_id'] = user_id_local
+                    return redirect(url_for('auth.mfa_verify'))
+
+                # Connexion standard (MFA non requis)
                 session['user_id'] = user_id_local
                 session['last_activity'] = datetime.utcnow().isoformat()
                 flash('Connexion réussie !', 'success')
@@ -324,3 +346,183 @@ def logout():
     session.clear()
     flash('Vous avez été déconnecté.', 'info')
     return redirect(url_for('auth.login'))
+
+
+@auth_bp.route('/mfa/verify', methods=('GET', 'POST'))
+def mfa_verify():
+    """Vérification du code MFA après la saisie du login/pass."""
+    user_id = session.get('mfa_user_id')
+    if not user_id:
+        return redirect(url_for('auth.login'))
+
+    if request.method == 'POST':
+        code = request.form.get('code')
+        db_session = obtenir_session()
+        user = db_session.query(Utilisateur).get(user_id)
+
+        # 1. Vérification du code TOTP standard
+        is_totp_valid = user and pyotp.TOTP(user.mfa_secret).verify(code)
+        
+        # 2. Vérification des codes de secours si le TOTP échoue
+        is_backup_valid = False
+        if user and not is_totp_valid and user.mfa_backup_codes:
+            # On nettoie le code de secours (souvent saisi avec des espaces ou en minuscules)
+            clean_code = code.strip().upper()
+            hashed_list = user.mfa_backup_codes.split(',')
+            new_hashed_list = []
+            
+            for h in hashed_list:
+                if not is_backup_valid and bcrypt.verify(clean_code, h):
+                    is_backup_valid = True
+                    # On ne rajoute pas ce code (il est utilisé)
+                else:
+                    new_hashed_list.append(h)
+            
+            if is_backup_valid:
+                user.mfa_backup_codes = ",".join(new_hashed_list)
+                db_session.commit()
+
+        if is_totp_valid or is_backup_valid:
+            # Succès MFA
+            session.pop('mfa_user_id', None)
+            session['user_id'] = user.id
+            session['last_activity'] = datetime.utcnow().isoformat()
+            
+            from src.audit_logger import log_action
+            log_type = "CONNEXION_MFA_SUCCESS" if is_totp_valid else "CONNEXION_BACKUP_CODE"
+            log_action(user.id, log_type, "Système", {"user_id": user.id})
+            
+            flash('Connexion réussie !', 'success')
+            return redirect(url_for('home'))
+        else:
+            flash('Code invalide. Veuillez réessayer.', 'danger')
+            from src.audit_logger import log_action
+            log_action(user_id, "ECHEC_MFA", "Système", {"user_id": user_id, "raison": "code_invalide"})
+
+    return render_template('auth/mfa_verify.html')
+
+
+@auth_bp.route('/mfa/recovery', methods=('GET', 'POST'))
+def mfa_recovery():
+    """Utilisation d'un code de secours pour se connecter."""
+    user_id = session.get('mfa_user_id')
+    if not user_id:
+        return redirect(url_for('auth.login'))
+
+    if request.method == 'POST':
+        code = request.form.get('code')
+        db_session = obtenir_session()
+        user = db_session.query(Utilisateur).get(user_id)
+
+        is_backup_valid = False
+        if user and user.mfa_backup_codes:
+            # On nettoie le code de secours
+            clean_code = code.strip().upper()
+            hashed_list = user.mfa_backup_codes.split(',')
+            new_hashed_list = []
+            
+            for h in hashed_list:
+                if not is_backup_valid and bcrypt.verify(clean_code, h):
+                    is_backup_valid = True
+                else:
+                    new_hashed_list.append(h)
+            
+            if is_backup_valid:
+                user.mfa_backup_codes = ",".join(new_hashed_list)
+                db_session.commit()
+
+                # Succès
+                session.pop('mfa_user_id', None)
+                session['user_id'] = user.id
+                session['last_activity'] = datetime.utcnow().isoformat()
+                
+                from src.audit_logger import log_action
+                log_action(user.id, "CONNEXION_BACKUP_CODE", "Système", {"user_id": user.id})
+                
+                flash('Connexion réussie via code de secours !', 'success')
+                return redirect(url_for('home'))
+
+        flash('Code de secours invalide ou déjà utilisé.', 'danger')
+        from src.audit_logger import log_action
+        log_action(user_id, "ECHEC_MFA_RECOVERY", "Système", {"user_id": user_id, "raison": "code_invalide"})
+
+    return render_template('auth/mfa_recovery.html')
+
+
+@auth_bp.route('/mfa/setup', methods=('GET', 'POST'))
+def mfa_setup():
+    """Configuration initiale du MFA (génération du secret et QR code)."""
+    # L'utilisateur doit être soit partiellement connecté (mfa_setup_user_id)
+    # soit déjà totalement connecté (g.user) pour activer le MFA depuis son profil.
+    user_id = session.get('mfa_setup_user_id') or (g.user.id if g.user else None)
+    
+    if not user_id:
+        return redirect(url_for('auth.login'))
+
+    db_session = obtenir_session()
+    user = db_session.query(Utilisateur).get(user_id)
+
+    if request.method == 'POST':
+        code = request.form.get('code')
+        secret = session.get('temp_mfa_secret')
+        
+        if secret and pyotp.TOTP(secret).verify(code):
+            # Génération des codes de secours
+            import secrets
+            recovery_codes = [secrets.token_hex(4).upper() for _ in range(8)]
+            hashed_codes = ",".join([bcrypt.hash(c) for c in recovery_codes])
+            
+            user.mfa_secret = secret
+            user.mfa_enabled = True
+            user.mfa_backup_codes = hashed_codes
+            db_session.commit()
+            
+            session.pop('temp_mfa_secret', None)
+            session.pop('mfa_setup_user_id', None)
+            
+            # Si on était en train de se connecter, on finit la connexion
+            if not g.user:
+                session['user_id'] = user.id
+                session['last_activity'] = datetime.utcnow().isoformat()
+            
+            from src.audit_logger import log_action
+            log_action(user.id, "MFA_ACTIVE", "Utilisateur", {"user_id": user.id})
+            
+            # On affiche les codes de secours une seule fois
+            return render_template('auth/mfa_setup.html', success=True, recovery_codes=recovery_codes)
+        else:
+            flash('Code de confirmation invalide. Veuillez scanner à nouveau.', 'danger')
+
+    # Génération d'un nouveau secret si pas encore en session
+    if 'temp_mfa_secret' not in session:
+        session['temp_mfa_secret'] = pyotp.random_base32()
+    
+    secret = session['temp_mfa_secret']
+    totp = pyotp.TOTP(secret)
+    provisioning_uri = totp.provisioning_uri(name=user.nom_utilisateur, issuer_name="SecureBank")
+    
+    # Génération du QR Code en base64
+    img = qrcode.make(provisioning_uri)
+    buf = io.BytesIO()
+    img.save(buf, format='PNG')
+    qr_base64 = base64.b64encode(buf.getvalue()).decode('utf-8')
+
+    return render_template('auth/mfa_setup.html', qr_code=qr_base64, secret=secret)
+
+
+@auth_bp.route('/mfa/disable', methods=('POST',))
+@login_required
+def mfa_disable():
+    """Désactivation du MFA depuis le profil."""
+    # Note: On devrait normalement demander confirmation du mot de passe ici
+    db_session = obtenir_session()
+    user = db_session.query(Utilisateur).get(g.user.id)
+    user.mfa_enabled = False
+    user.mfa_secret = None
+    db_session.commit()
+    
+    from src.audit_logger import log_action
+    log_action(user.id, "MFA_DESACTIVE", "Utilisateur", {"user_id": user.id})
+    
+    flash('Double authentification désactivée.', 'warning')
+    return redirect(url_for('home'))

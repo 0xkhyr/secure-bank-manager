@@ -118,6 +118,11 @@ class Utilisateur(Base):
 
     # Profile: display name (optional)
     display_name = Column(String(100), nullable=True)
+
+    # MFA - Authentification à deux facteurs
+    mfa_enabled = Column(Boolean, default=False, nullable=False)
+    mfa_secret = Column(String(32), nullable=True)
+    mfa_backup_codes = Column(Text, nullable=True)  # Codes de secours (hashés séparés par des virgules)
     
     # Relations
     journaux = relationship('Journal', back_populates='utilisateur', lazy='dynamic')

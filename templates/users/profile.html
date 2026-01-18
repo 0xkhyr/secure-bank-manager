@@ -46,6 +46,38 @@
                 <button class="btn" type="submit" style="background: #3b82f6; color:white;">Réinitialiser le mot de passe</button>
             </form>
         </div>
+    <div class="card" style="margin-top: 20px;">
+        <div class="card-header">Sécurité & MFA</div>
+        <div class="card-body">
+            {% if user.mfa_enabled %}
+                <div class="d-flex align-items-center mb-3">
+                    <div class="text-success me-2">
+                        <i class="bi bi-shield-check" style="font-size: 1.5rem;"></i>
+                    </div>
+                    <div>
+                        <div class="fw-bold">Double authentification activée</div>
+                        <div class="text-muted small">Votre compte est protégé par un code de sécurité.</div>
+                    </div>
+                </div>
+                <form action="{{ url_for('auth.mfa_disable') }}" method="POST" onsubmit="return confirm('Êtes-vous sûr de vouloir désactiver la protection 2FA ?')">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-outline-danger btn-sm">Désactiver le MFA</button>
+                </form>
+            {% else %}
+                <div class="d-flex align-items-center mb-3">
+                    <div class="text-warning me-2">
+                        <i class="bi bi-shield-exclamation" style="font-size: 1.5rem;"></i>
+                    </div>
+                    <div>
+                        <div class="fw-bold">Double authentification désactivée</div>
+                        <div class="text-muted small">Renforcez la sécurité de votre compte bancaire.</div>
+                    </div>
+                </div>
+                <a href="{{ url_for('auth.mfa_setup') }}" class="btn btn-primary btn-sm shadow-sm">
+                    Configurer le MFA <i class="bi bi-arrow-right ms-1"></i>
+                </a>
+            {% endif %}
+        </div>
     </div>
 </div>
 {% endblock %}

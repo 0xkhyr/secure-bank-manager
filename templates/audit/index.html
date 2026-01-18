@@ -9,11 +9,13 @@
         <h1 style="font-size: 24px; font-weight: 400;">Journal d'Audit</h1>
         <div style="display: flex; gap: 8px;">
             <a href="{{ url_for('audit.clotures') }}" class="btn btn-outline-primary" style="border: 1px solid var(--primary-color); padding: 8px 16px;">
-                <i class="bi bi-calendar-check"></i> Clôtures Quotidiennes
+                Clôtures Quotidiennes
             </a>
+            {% if has_permission(g.user, 'audit_verify') %}
             <form action="{{ url_for('audit.verify') }}" method="POST" style="margin: 0;">
                 <button type="submit" class="btn btn-primary" style="background: #f9ab00; border-color: #f9ab00; color: var(--text-primary);">Vérifier Intégrité</button>
             </form>
+            {% endif %}
         </div>
     </div>
 

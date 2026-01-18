@@ -3,7 +3,7 @@
 {% block title %}Clôtures Journalières - Audit{% endblock %}
 
 {% block content %}
-<h1><i class="bi bi-calendar-check text-primary"></i> Clôtures Journalières</h1>
+<h1>Clôtures Journalières</h1>
 <div class="mb-4" style="display: flex; justify-content: space-between; align-items: center;">
     
     <a href="{{ url_for('audit.index') }}" class="btn btn-outline-secondary shadow-sm">
@@ -12,7 +12,7 @@
     <form action="{{ url_for('audit.cloturer_hier') }}" method="POST">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button type="submit" class="btn btn-primary shadow-sm">
-            <i class="bi bi-lock-fill"></i> Clôturer Hier
+            Clôturer Hier
         </button>
     </form>
 </div>

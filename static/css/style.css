@@ -847,16 +847,28 @@ tr:last-child td {
 
 .flash-container {
     position: fixed;
-    top: 24px;
-    left: 50%;
-    transform: translateX(-50%);
+    top: 62px;
+    right: 24px;
+    left: auto;
     z-index: 2000;
-    width: 100%;
-    max-width: 500px;
+    width: auto;
+    max-width: 360px;
     pointer-events: none;
     display: flex;
     flex-direction: column;
     gap: 12px;
+    align-items: flex-end;
+}
+
+/* Mobile: keep flashes centered on narrow viewports */
+@media (max-width: 576px) {
+    .flash-container {
+        left: 50%;
+        right: auto;
+        transform: translateX(-50%);
+        max-width: 92%;
+        align-items: center;
+    }
 }
 
 .alert {

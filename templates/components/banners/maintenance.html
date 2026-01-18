@@ -3,12 +3,12 @@
   <div class="maintenance-content">
     {% if g.user and g.user.role.value in ['admin','superadmin'] %}
     <span class="maintenance-text">
-      <strong>Maintenance (admin)</strong> — {{ MAINTENANCE_MESSAGE }}
-      <span class="badge bg-secondary ms-2">ADMIN VIEW</span>
+      <strong>Maintenance (admin)</strong> | {{ MAINTENANCE_MESSAGE }}
+      <span class="badge bg-secondary ms-2">ADMIN</span>
     </span>
     {% else %}
     <span class="maintenance-text">
-      <strong>Maintenance</strong> — {{ MAINTENANCE_MESSAGE }}
+      <strong>Maintenance</strong> - {{ MAINTENANCE_MESSAGE }}
     </span>
     <button
       type="button"
