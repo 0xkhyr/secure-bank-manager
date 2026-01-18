@@ -1,11 +1,11 @@
 {% extends 'base.html' %}
 
-{% block title %}Audit Hash-Chain Visualization{% endblock %}
+{% block title %}Visualisation de la Chaîne d'Audit - SecureBank{% endblock %}
 
 {% block content %}
 <div style="max-width:1100px;margin:28px auto; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; color:#111827;">
-  <h2 style="text-align:center; font-weight:600; margin-bottom:6px;">Audit Hash-Chain Visualization</h2>
-  <p style="text-align:center; color:#6b7280; margin-top:0; margin-bottom:18px;">Genesis → Logs → Broken nodes → Daily Root checkpoint — read-only, banking-grade integrity view</p>
+  <h2 style="text-align:center; font-weight:600; margin-bottom:6px;">Visualisation de la Chaîne de Hash d'Audit</h2>
+  <p style="text-align:center; color:#6b7280; margin-top:0; margin-bottom:18px;">Genèse → Logs → Nœuds corrompus → Point de contrôle quotidien — vue lecture seule, intégrité de grade bancaire</p>
 
   <div style="background:#ffffff; border:1px solid #e6e8eb; border-radius:8px; padding:16px;">
     <div style="overflow:auto; padding-bottom:8px;">
@@ -13,7 +13,7 @@
         {% set entries = data.entries %}
         {% set n = entries|length %}
         {% if n == 0 %}
-          <div style="color:#6b7280; font-style:italic;">No entries available</div>
+          <div style="color:#6b7280; font-style:italic;">Aucun enregistrement disponible</div>
         {% else %}
           {# Use the server-provided summary when available (computes representative indices server-side); fallback to computed minimal summary #}
           {% if summary is defined %}
@@ -49,15 +49,15 @@
           {% for seg in segments %}
             {% if seg.type == 'genesis' %}
               {% set g = seg.entry %}
-              <div class="minimal-node genesis good" {% if g.id %}data-id="{{ g.id }}"{% endif %} title="Genesis Hash">
-                <div class="title">Genesis Hash</div>
+              <div class="minimal-node genesis good" {% if g.id %}data-id="{{ g.id }}"{% endif %} title="Hash de Genèse">
+                <div class="title">Hash de Genèse</div>
                 <div class="meta">{{ g.hash_actuel[:8] if g.hash_actuel else '' }}</div>
               </div>
 
             {% elif seg.type == 'first' %}
               {% set f = seg.entry %}
-              <div class="minimal-node good" data-id="{{ f.id }}" title="#{{ f.id }} - First">
-                <div class="title">Log #{{ f.id }}</div>
+              <div class="minimal-node good" data-id="{{ f.id }}" title="#{{ f.id }} - Premier">
+                <div class="title">Journal #{{ f.id }}</div>
                 <div class="meta">{{ f.hash_actuel[:8] if f.hash_actuel else '' }}</div>
               </div>
 
@@ -66,7 +66,7 @@
 
             {% elif seg.type == 'broken' %}
               {% if broken_shown < preview_limit %}
-                <div class="minimal-node broken small" data-id="{{ seg.entry.id }}" title="#{{ seg.entry.id }} - Broken">
+                <div class="minimal-node broken small" data-id="{{ seg.entry.id }}" title="#{{ seg.entry.id }} - Corrompu">
                   <div class="title">#{{ seg.entry.id }}</div>
                   <div class="meta">{{ seg.entry.hash_actuel[:8] if seg.entry.hash_actuel else '' }}</div>
                 </div>
@@ -79,8 +79,8 @@
               {% endif %}
 
             {% elif seg.type == 'daily' %}
-              <div class="minimal-node good" data-id="{{ seg.entry.id }}" title="#{{ seg.entry.id }} - Daily Root">
-                <div class="title">Daily Root</div>
+              <div class="minimal-node good" data-id="{{ seg.entry.id }}" title="#{{ seg.entry.id }} - Racine Quotidienne">
+                <div class="title">Racine Quotidienne</div>
                 <div class="meta">{{ seg.entry.hash_actuel[:8] if seg.entry.hash_actuel else '' }}</div>
               </div>
             {% endif %}
@@ -95,7 +95,7 @@
     </div>
   </div>
 
-  <p style="color:#6b7280; font-size:13px; margin-top:12px; text-align:center;">Read-only view intended for monitoring. Forensic export is available in admin tools.</p>
+  <p style="color:#6b7280; font-size:13px; margin-top:12px; text-align:center;">Vue en lecture seule destinée à la surveillance. L'exportation légale est disponible dans les outils d'administration.</p>
 
   <div id="detail" class="mt-3" style="display:none; max-width:1100px; margin:12px auto;">
     <div class="card">

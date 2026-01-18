@@ -1,13 +1,13 @@
-# 🏦 Application de Gestion Bancaire Sécurisée
+#  Application de Gestion Bancaire Sécurisée
 
 Application web interne pour la gestion des clients, comptes et opérations bancaires avec système d'audit sécurisé.
 
-## 📋 Prérequis
+##  Prérequis
 
 - Docker
 - Docker Compose
 
-## 🚀 Installation et Lancement
+##  Installation et Lancement
 
 ### 1. Cloner le projet
 ```bash
@@ -20,7 +20,7 @@ cd secure-bank-manager
 cp .env.example .env
 ```
 
-**⚠️ Modifier obligatoirement en production** :
+**Modifier obligatoirement en production** :
 - `SECRET_KEY` et `HMAC_SECRET_KEY` : Générer avec `python -c "import secrets; print(secrets.token_hex(32))"`
 
 **Configuration des règles métier (Tunisie - Dinar Tunisien)** :
@@ -32,12 +32,13 @@ Ces valeurs peuvent être ajustées selon les politiques de la banque.
 
 ### 3. Lancer l'application avec Docker
 ```bash
-docker-compose up --build
+# Utiliser la version V2 de Docker Compose
+docker compose up --build
 ```
 
 L'application sera accessible sur : **http://localhost:5000**
 
-## 📁 Structure du Projet
+## Structure du Projet
 
 ```
 secure-bank-manager/
@@ -47,7 +48,8 @@ secure-bank-manager/
 │   ├── models.py           # Modèles de base de données
 │   ├── db.py               # Configuration et initialisation DB
 │   ├── auth.py             # Authentification et gestion des rôles
-│   └── audit_logger.py     # Système d'audit sécurisé (HMAC + chain hash)
+│   ├── audit_logger.py     # Système d'audit sécurisé (HMAC + chain hash)
+│   └── ...                  # Autres modules
 │
 ├── templates/              # Templates HTML (Jinja2)
 ├── static/                 # Fichiers CSS, JS, images
@@ -69,7 +71,7 @@ secure-bank-manager/
 └── README.md               # Ce fichier
 ```
 
-## 👥 Utilisateurs par Défaut
+##  Utilisateurs par Défaut
 
 En développement, vous pouvez créer des comptes de démonstration via le script suivant (local uniquement) :
 
@@ -77,9 +79,9 @@ En développement, vous pouvez créer des comptes de démonstration via le scrip
 python scripts/seed_dev_users.py --force
 ```
 
-⚠️ **Important** : changez les mots de passe avant toute utilisation hors développement !
+**Important** : changez les mots de passe avant toute utilisation hors développement !
 
-## 🔧 Fonctionnalités
+##  Fonctionnalités
 
 ### Gestion des Clients
 - Ajouter, modifier, supprimer des clients
@@ -90,21 +92,30 @@ python scripts/seed_dev_users.py --force
 - Consulter le solde et l'historique
 - Supprimer un compte (solde = 0)
 
-### Opérations Bancaires
-- Dépôt d'argent (aucune limite)
-- Retrait d'argent (limite configurable via `RETRAIT_MAXIMUM`)
-- Solde minimum à l'ouverture configurable via `SOLDE_MINIMUM_INITIAL`
-- Solde minimum après opérations configurable via `SOLDE_MINIMUM_COMPTE`
-- Historique complet des transactions
-- Devise : Dinar Tunisien (TND)
+### Opérations Bancaires & Workflow
+- Dépôt d'argent (aucune limite) et retraits contrôlés.
+- **Workflow Maker-Checker (Quatre-Yeux)** : Toute opération sensible ou modification de politique nécessite l'approbation d'un second utilisateur (Admin/Checker).
+- **Limites Dynamiques** : Vérification en temps réel du solde minimum, du plafond de retrait et de la vélocité.
+- Devise : Dinar Tunisien (TND) par défaut.
+
+### Contrôles de Sécurité Avancés
+- **MFA (Multi-Factor Authentication)** : Support TOTP (Google Authenticator) pour tous les comptes.
+- **Panic Mode (Maintenance)** : Capacité de verrouiller l'application en lecture seule ou de bloquer toutes les transactions en cas d'attaque.
+- **Protection Brute-Force** : Verrouillage temporaire de compte et Rate Limiting (Flask-Limiter) par adresse IP.
+- **Hardening HTTP** : Protection CSRF globale, en-têtes de sécurité (HSTS, CSP, XSS protection) et cookies sécurisés (SameSite=Lax, HttpOnly).
 
 ### Audit Sécurisé
-- Journalisation de toutes les actions critiques
-- Chain hash pour l'intégrité des logs
-- HMAC pour détecter les falsifications
-- Interface de vérification de l'intégrité
+- Journalisation de toutes les actions critiques (Connexion, Erreurs, Accès aux données).
+- **Chain Hash** (HMAC-SHA256) pour l'intégrité absolue des logs.
+- **Visualisation Localisée** : Interface graphique de vérification en français.
+- **Mode Démonstration** : Simulateur de falsification pour prouver la détection d'altération.
 
-## ⚙️ Configuration
+### Outils de Maintenance & Dev (Zone Nucléaire)
+- **Console SQL Brute** : Exécution de requêtes directement depuis l'interface dev.
+- **Modification Directe** : Correction rapide de données via un éditeur intégré.
+- **Log Breaker** : Outil d'altération furtive pour tester la résistance de l'audit.
+
+##  Configuration
 
 L'application utilise un système de configuration centralisé via le fichier `.env` et le module `src/config.py`.
 
@@ -135,72 +146,55 @@ python src/config.py
 
 Affichera toutes les valeurs configurées.
 
-## 🔒 Sécurité
+##  Sécurité & Conformité
 
-- Mots de passe hashés avec bcrypt
-- Sessions sécurisées
-- Validation des entrées utilisateur
-- Gestion des rôles (Admin / Opérateur)
-- Audit trail immuable
-- Règles métier configurables sans modification du code
+- **Audit Trail** : Journal immuable avec chaînage de hash et signature HMAC.
+- **RBAC** : Gestion fine des accès par rôles (Operateur, Admin, SuperAdmin).
+- **Maker-Checker** : Séparation des tâches pour les approbations.
+- **Brute-Force** : Détection et blocage automatique après tentatives infructueuses.
+- **Data Protection** : Mots de passe hashés avec bcrypt, protection contre l'énumération d'utilisateurs.
+- **Règles métier** : Configurables à chaud via variables d'environnement.
 
-## 🛠️ Commandes Utiles
-
+##  Commandes Utiles
 ### Développement Local (sans Docker)
 
-#### Démarrer l'application
 ```bash
-./start.sh
+# Lancer l'application
+./scripts/start.sh
+
+# Arrêter l'application
+./scripts/stop.sh
 ```
 
-#### Arrêter l'application
-```bash
-./stop.sh
-```
+### Docker (Recommandé)
 
-### Docker
-
-#### Arrêter l'application
 ```bash
-docker-compose down
-```
+# Lancer avec Docker Compose (V2 obligatoire)
+docker compose up --build
 
-#### Voir les logs
-```bash
-docker-compose logs -f
-```
+# Voir les journaux d'exécution
+docker compose logs -f
 
-#### Reconstruire l'image
-```bash
-docker-compose up --build
-```
-
-#### Accéder au conteneur
-```bash
+# Accéder au conteneur
 docker exec -it secure_bank_manager bash
 ```
 
-## 📊 Base de Données
+##  Tests
+L'application dispose d'une suite de **25 tests de sécurité critiques**.
 
-Tables principales :
-- `utilisateurs` : Employés de l'application (Admin, Opérateur)
-- `clients` : Clients de la banque
-- `comptes` : Comptes bancaires
-- `operations` : Historique des opérations (dépôts/retraits)
-- `journaux` : Journal d'audit sécurisé
-
-## 🧪 Tests
-
-Pour exécuter les tests :
 ```bash
-docker exec -it secure_bank_manager python -m pytest tests/
+docker exec -it secure_bank_manager pytest tests/
 ```
 
-## 📝 Documentation
+##  Documentation
+La documentation détaillée est disponible dans le dossier `docs/`, notamment le guide de [Démonstration de Sécurité](docs/DEMONSTRATION_SECURITE.md).
+```
+
+##  Documentation
 
 Voir le [Cahier des Charges](docs/CAHIER_DES_CHARGES.md) pour plus de détails sur l'architecture et les spécifications.
 
-## 👨‍💻 Développement
+##  Développement
 
 Pour le développement local sans Docker :
 
@@ -218,10 +212,9 @@ pip install -r requirements.txt
 python app.py
 ```
 
-## 📄 Licence
+##  Licence
 
 Projet académique - 2025
 
-## 👤 Auteur
-
+##  Auteur
 Développé dans le cadre d'un projet de cybersécurité bancaire.

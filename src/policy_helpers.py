@@ -1,5 +1,6 @@
 """
-Helpers for working with DB-backed policies and common policy-based decorators.
+# Utilitaires pour l'accès aux politiques de sécurité dynamiques.
+# Sécurité : Centralise les helpers de validation et les décorateurs de contrôle de conformité.
 """
 from functools import wraps
 from typing import Callable, Any
@@ -9,7 +10,9 @@ from src.policy import get_policy
 
 
 def get_policy_int(key: str, default: Any = None) -> Any:
-    """Return policy value cast to int or `default` on failure."""
+    """
+    # Sécurité : Récupère une valeur de politique castée en entier avec gestion sécurisée des erreurs.
+    """
     val = get_policy(key, default=default)
     try:
         return int(val)
@@ -18,7 +21,9 @@ def get_policy_int(key: str, default: Any = None) -> Any:
 
 
 def get_policy_bool(key: str, default: bool = False) -> bool:
-    """Return policy as a boolean. Accepts common string representations."""
+    """
+    # Sécurité : Évalue une politique booléenne avec support des formats de chaînes standard.
+    """
     val = get_policy(key, default=default)
     if isinstance(val, bool):
         return val
@@ -28,10 +33,9 @@ def get_policy_bool(key: str, default: bool = False) -> bool:
 
 
 def require_policy_max(key: str, amount_getter: Callable[..., Any]):
-    """Decorator that aborts with 403 if the given amount exceeds the policy `key`.
-
-    amount_getter is a callable that receives the same args/kwargs as the wrapped
-    view/function and must return a numeric value (or a string parseable to float).
+    """
+    # Sécurité : Décorateur appliquant un plafond dynamique défini par les politiques de sécurité.
+    # Limitation : Interrompt la requête (403 Forbidden) si le seuil configuré est dépassé.
     """
 
     def decorator(f):
@@ -44,9 +48,10 @@ def require_policy_max(key: str, amount_getter: Callable[..., Any]):
             try:
                 amount = float(amount)
             except Exception:
-                # Invalid amount -> bad request
+                # Sécurité : Rejette les entrées malformées.
                 abort(400)
             if amount > limit:
+                # Limitation : Refus d'accès pour dépassement de quota ou seuil.
                 abort(403)
             return f(*args, **kwargs)
 
@@ -56,7 +61,9 @@ def require_policy_max(key: str, amount_getter: Callable[..., Any]):
 
 
 def enforce_withdrawal_limit(amount: Any) -> bool:
-    """Return True if `amount` is within the configured daily withdrawal limit."""
+    """
+    # Règle métier : Vérifie si le montant respecte le plafond de retrait journalier configuré.
+    """
     limit = get_policy_int('retrait.limite_journaliere', default=None)
     if limit is None:
         return True

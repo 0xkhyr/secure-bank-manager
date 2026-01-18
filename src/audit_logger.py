@@ -1,59 +1,49 @@
 """
-audit_logger.py - Système de journalisation d'audit sécurisé
-
-Ce module gère l'enregistrement immuable des actions critiques.
-Il utilise deux mécanismes de sécurité :
-1. Chain Hash : Chaque entrée contient le hash de l'entrée précédente.
-2. HMAC : Chaque entrée est signée cryptographiquement.
-
-Cela garantit que :
-- L'historique ne peut pas être modifié sans briser la chaîne de hash.
-- On ne peut pas insérer de faux logs sans la clé secrète HMAC.
+# Journalisation d'Audit Sécurisée
+# Audit : Ce module implémente un journal de transactions immuable et vérifiable.
+# Sécurité : Utilise un chaînage de hash (Hash Chaining) et des signatures HMAC pour garantir
+# l'intégrité, la non-répudiation et la détection de toute manipulation malveillante.
 """
 
 import hashlib
 import hmac
 import json
-from datetime import datetime
-from sqlalchemy import desc, func, cast, Date as SQLDate
-from src.db import obtenir_session
-from src.models import Journal, ClotureJournal
-from src.config import Config
 from datetime import datetime, date as py_date
+from sqlalchemy import desc, func, cast, Date as SQLDate
+from sqlalchemy.orm import joinedload
+from src.db import obtenir_session
+from src.models import (
+    Journal, ClotureJournal
+)
+from src.config import Config
 
 def calculer_hash(data):
     """
-    Calcule le hash SHA-256 d'une chaîne de caractères.
+    # Audit : Génère l'empreinte numérique (SHA-256) d'un jeu de données.
+    # Cette empreinte est utilisée pour le chaînage avec l'entrée suivante.
     """
     return hashlib.sha256(data.encode('utf-8')).hexdigest()
 
 def calculer_hmac(data):
     """
-    Calcule la signature HMAC-SHA256 avec la clé secrète de l'application.
+    # Sécurité : Signe cryptographiquement les données avec une clé secrète applicative.
+    # Empêche la génération de logs valides par un attaquant n'ayant pas accès à la clé secrète.
     """
     secret = Config.HMAC_SECRET_KEY.encode('utf-8')
     return hmac.new(secret, data.encode('utf-8'), hashlib.sha256).hexdigest()
 
 def log_action(utilisateur_id, action, cible=None, details=None):
     """
-    Enregistre une action dans le journal d'audit sécurisé.
-    
-    Args:
-        utilisateur_id (int): ID de l'utilisateur effectuant l'action
-        action (str): Type d'action (ex: 'CONNEXION', 'DEPOT')
-        cible (str, optional): Cible de l'action (ex: 'Compte 123')
-        details (dict, optional): Détails supplémentaires en JSON
-    
-    Returns:
-        bool: True si l'enregistrement a réussi, False sinon
+    # Audit : Enregistre de manière sécurisée une action utilisateur.
+    # Politique : Toute action critique (flux financier, accès privilégié) doit être logguée.
     """
     session = obtenir_session()
     try:
-        # 1. Préparer les données
+        # Sécurité : Utilise un format JSON canonique (clés triées) pour garantir un hash reproductible.
         details_json = json.dumps(details, ensure_ascii=False, sort_keys=True) if details else None
         horodatage = datetime.utcnow().replace(microsecond=0)
         
-        # 2. Récupérer le hash du dernier log pour la chaîne (Verrouillage de ligne pour la concurrence)
+        # Sécurité : Verrouillage sérialisé du dernier log pour éviter les collisions lors d'accès concurrents.
         dernier_log = (
             session.query(Journal)
             .order_by(desc(Journal.id))
@@ -62,8 +52,7 @@ def log_action(utilisateur_id, action, cible=None, details=None):
         )
         hash_precedent = dernier_log.hash_actuel if dernier_log else Config.GENESIS_HASH
         
-        # 3. Construire la chaîne de données à hasher/signer
-        # Format: json canonical        
+        # Audit : Construction du payload d'intégrité incluant le lien vers le passé (hash_precedent).
         audit_payload = {
             "timestamp": horodatage.isoformat() + "Z",
             "utilisateur_id": utilisateur_id,
@@ -80,11 +69,10 @@ def log_action(utilisateur_id, action, cible=None, details=None):
             separators=(",", ":")
         )
 
-        # 4. Calculer les sécurités
+        # Sécurité : Double protection par empreinte (intégrité structurelle) et signature (authenticité).
         hash_actuel = calculer_hash(canonical_json)
         signature = calculer_hmac(canonical_json)
         
-        # 5. Créer l'entrée
         nouveau_log = Journal(
             horodatage=horodatage,
             utilisateur_id=utilisateur_id,
@@ -98,25 +86,17 @@ def log_action(utilisateur_id, action, cible=None, details=None):
         
         session.add(nouveau_log)
         session.commit()
-        print(f"Audit: {action} enregistré avec succès.")
         return True
         
     except Exception as e:
-        print(f"Erreur d'audit : {e}")
+        # Limitation : En cas d'échec de l'audit, la transaction parente doit être annulée (Rollback).
         session.rollback()
         return False
 
 def verifier_integrite():
     """
-    Vérifie l'intégrité complète de la chaîne de logs.
-    
-    Parcourt tous les logs et vérifie :
-    1. Que le hash_precedent correspond bien au hash_actuel du log d'avant.
-    2. Que le hash_actuel est valide par rapport aux données.
-    3. Que la signature HMAC est valide.
-    
-    Returns:
-        tuple: (bool, list) - (Valide?, Liste des erreurs trouvées)
+    # Audit : Parcourt et valide mathématiquement la totalité de la chaîne de logs.
+    # Vérifie la continuité (hash_precedent), l'intégrité (hash_actuel) et l'authenticité (HMAC).
     """
     session = obtenir_session()
     logs = session.query(Journal).order_by(Journal.id).all()
@@ -126,7 +106,7 @@ def verifier_integrite():
     hash_attendu_precedent = Config.GENESIS_HASH
     
     for log in logs:
-        # Reconstruire les données au format JSON Canonique
+        # Audit : Recréation du payload canonique pour confrontation avec les valeurs stockées.
         audit_payload = {
             "timestamp": log.horodatage.isoformat() + "Z",
             "utilisateur_id": log.utilisateur_id,
@@ -143,26 +123,20 @@ def verifier_integrite():
             separators=(",", ":")
         )
         
-        # Vérification 1 : Chaînage
+        # Sécurité : Détection de rupture de continuité dans la chaîne de preuve.
         if log.hash_precedent != hash_attendu_precedent:
-            erreurs.append(f"Log #{log.id} : Rupture de chaîne (Hash précédent invalide)")
-            status = 'broken_precedent'
-        else:
-            status = 'ok'
+            erreurs.append({"id": log.id, "message": f"Log #{log.id} : Rupture de chaîne (Hash précédent invalide)"})
         
-        # Vérification 2 : Hash actuel
+        # Sécurité : Détection de modification directe de la ligne en base de données ou corruption.
         hash_calcule = calculer_hash(canonical_json)
         if log.hash_actuel != hash_calcule:
-            erreurs.append(f"Log #{log.id} : Données corrompues (Hash invalide)")
-            status = 'bad_hash'
+            erreurs.append({"id": log.id, "message": f"Log #{log.id} : Données corrompues (Hash invalide)"})
             
-        # Vérification 3 : Signature HMAC
+        # Sécurité : Détection d'injection malveillante sans possession de la clé secrète.
         hmac_calcule = calculer_hmac(canonical_json)
         if log.signature_hmac != hmac_calcule:
-            erreurs.append(f"Log #{log.id} : Signature falsifiée (HMAC invalide)")
-            status = 'bad_hmac'
+            erreurs.append({"id": log.id, "message": f"Log #{log.id} : Signature falsifiée (HMAC invalide)"})
             
-        # Mise à jour pour le prochain tour
         hash_attendu_precedent = log.hash_actuel
         
     est_valide = len(erreurs) == 0
@@ -171,10 +145,7 @@ def verifier_integrite():
 
 def verifier_integrite_detailed(limit=None):
     """
-    Fournit un rapport détaillé par log pour la visualisation en chaîne.
-    - limit (int) : si fourni, limite le nombre de logs retournés (les plus récents si négatif)
-
-    Retourne un dict: { 'valid': bool, 'entries': [ {id, horodatage, utilisateur_id, action, hash_precedent, hash_actuel, signature_hmac, status, errors: [] } ], 'errors': [] }
+    # Audit : Génère un rapport détaillé de l'état de la chaîne pour l'interface d'administration.
     """
     session = obtenir_session()
     query = session.query(Journal).order_by(Journal.id)
@@ -185,7 +156,6 @@ def verifier_integrite_detailed(limit=None):
     hash_attendu_precedent = Config.GENESIS_HASH
 
     for log in logs:
-        # keep raw details for detail view
         raw_details = json.loads(log.details) if log.details else None
         audit_payload = {
             "timestamp": log.horodatage.isoformat() + "Z",
@@ -200,6 +170,7 @@ def verifier_integrite_detailed(limit=None):
         entry_errors = []
         status = 'ok'
 
+        # Sécurité : Vérification séquentielle de l'intégrité de chaque maillon.
         if log.hash_precedent != hash_attendu_precedent:
             entry_errors.append('rupture_precedent')
             status = 'broken_precedent'
@@ -239,12 +210,8 @@ def verifier_integrite_detailed(limit=None):
 
 def cloturer_journee(date_cloture=None):
     """
-    Crée une clôture cryptographique pour une journée spécifique.
-    
-    Args:
-        date_cloture (date, optional): La date à clôturer. Par défaut, hier.
-    Returns:
-        tuple: (bool, str) - (Succès?, Message)
+    # Audit : Fige l'état du journal pour une journée donnée via une clôture cryptographique.
+    # Cette étape crée un point d'ancrage immuable référençant le dernier log valide.
     """
     if date_cloture is None:
         from datetime import timedelta
@@ -252,12 +219,11 @@ def cloturer_journee(date_cloture=None):
         
     session = obtenir_session()
     try:
-        # 1. Vérifier si une clôture existe déjà pour cette date
+        # Sécurité : Une journée déjà clôturée ne peut pas être recalculée pour masquer des altérations.
         cloture_existante = session.query(ClotureJournal).filter_by(date=date_cloture).first()
         if cloture_existante:
             return False, f"La journée du {date_cloture} est déjà clôturée."
 
-        # 2. Trouver le dernier log de cette journée (filtrage par plage de temps)
         debut_jour = datetime.combine(date_cloture, datetime.min.time())
         fin_jour = datetime.combine(date_cloture, datetime.max.time())
         
@@ -270,14 +236,13 @@ def cloturer_journee(date_cloture=None):
         if not dernier_log:
             return False, f"Aucun log trouvé pour la journée du {date_cloture}."
 
-        # 3. Le "Hash Racine" est le hash_actuel du dernier log de la journée
+        # Audit : Le "Hash Racine" devient l'identifiant cryptographique unique de la journée.
         hash_racine = dernier_log.hash_actuel
         
-        # 4. Signer cryptographiquement ce hash racine
+        # Sécurité : Signature du point d'ancrage pour garantir son authenticité temporelle.
         payload_cloture = f"CLOTURE|{date_cloture.isoformat()}|{dernier_log.id}|{hash_racine}"
         signature = calculer_hmac(payload_cloture)
         
-        # 5. Créer l'entrée de clôture
         nouvelle_cloture = ClotureJournal(
             date=date_cloture,
             dernier_log_id=dernier_log.id,
@@ -295,15 +260,10 @@ def cloturer_journee(date_cloture=None):
 
 
 # --- Routes dynamiques pour visualisation de la chaîne ---
-from flask import Blueprint, render_template, jsonify, abort
+from flask import Blueprint, render_template, jsonify, abort, request, flash, redirect, url_for, g
 from src.auth import permission_required
 
-# Reuse the existing blueprint if defined in this module
-try:
-    audit_bp
-except NameError:
-    from flask import Blueprint
-    audit_bp = Blueprint('audit', __name__, url_prefix='/audit')
+audit_bp = Blueprint('audit', __name__, url_prefix='/audit')
 
 # French-only chain verification routes (keep only /verifier/*)
 @audit_bp.route('/verifier/chain')
@@ -388,9 +348,8 @@ def verifier_chain_detail(id):
 
 def verifier_clotures():
     """
-    Vérifie l'intégrité de toutes les clôtures journalières.
-    Returns:
-        tuple: (bool, list) - (Tout valide?, Liste erreurs)
+    # Audit : Vérifie la validité des signatures de toutes les clôtures journalières.
+    # Garantit que les points d'ancrage temporels n'ont pas été altérés.
     """
     session = obtenir_session()
     clotures = session.query(ClotureJournal).order_by(ClotureJournal.date).all()
@@ -399,7 +358,7 @@ def verifier_clotures():
     erreurs = []
     ids_invalides = set()
     for c in clotures:
-        # Re-calculer la signature
+        # Sécurité : Recalcul de la signature HMAC pour confrontation.
         payload = f"CLOTURE|{c.date.isoformat()}|{c.dernier_log_id}|{c.hash_racine}"
         signature_calculee = calculer_hmac(payload)
         
@@ -407,34 +366,17 @@ def verifier_clotures():
             erreurs.append(f"Clôture du {c.date} : Signature HMAC invalide (Falsification détectée)")
             ids_invalides.add(c.id)
             
-    # Return only validity and the list of errors (tests expect two values).
-    # Caller can compute ids_invalides itself if needed.
     return len(erreurs) == 0, erreurs
-
-"""
-Interface web pour le système d'audit sécurisé
-"""
-
-from flask import (
-    Blueprint, flash, g, render_template, request, url_for, redirect
-)
-from src.auth import permission_required
-from src.db import obtenir_session
-from src.models import Journal
-from sqlalchemy import desc
-from sqlalchemy.orm import joinedload
-import json
-
-# Reuse the audit_bp created above (avoid redefining and losing previously-decorated routes)
 
 @audit_bp.route('/')
 @permission_required('audit.view')
 def index():
-    """Affiche la liste des entrées du journal d'audit avec filtrage."""
-    from flask import g
+    """
+    # Audit : Interface de consultation du journal.
+    # Traçabilité : Chaque accès au journal est lui-même consigné dans l'audit.
+    """
     from src.models import Utilisateur
     
-    # 1. Capture des paramètres de filtrage et pagination
     page = int(request.args.get('page', 1))
     per_page = 50
     
@@ -445,43 +387,34 @@ def index():
     
     session = obtenir_session()
     
-    # 2. Construction de la requête de base
+    # Audit : Construction dynamique des filtres pour l'analyse forensique.
     query = session.query(Journal).options(joinedload(Journal.utilisateur))
     
-    # 3. Application des filtres dynamiques
     if start_date:
         query = query.filter(Journal.horodatage >= datetime.fromisoformat(start_date))
     if end_date:
-        # Fin de journée pour end_date (23:59:59)
         query = query.filter(Journal.horodatage <= datetime.fromisoformat(end_date).replace(hour=23, minute=59, second=59))
     if user_id and user_id != 'all':
         query = query.filter(Journal.utilisateur_id == int(user_id))
     if action_filter and action_filter != 'all':
         query = query.filter(Journal.action == action_filter)
     
-    # 4. Statistiques et données pour les dropdowns
     total_entries = query.count()
-    
-    # Liste des utilisateurs pour le filtre
     utilisateurs = session.query(Utilisateur).filter_by(is_active=True).order_by(Utilisateur.nom_utilisateur).all()
-    
-    # Liste des actions distinctes présentes dans le journal
     actions_distinctes = [r[0] for r in session.query(Journal.action).distinct().order_by(Journal.action).all()]
     
-    # 5. Exécution de la requête avec pagination (plus récentes en premier)
     entries = query.order_by(desc(Journal.id))\
         .offset((page - 1) * per_page)\
         .limit(per_page)\
         .all()
     
-    # 6. Logger l'accès filtré
+    # Audit : Consignation de l'accès au journal avec les filtres appliqués.
     log_action(g.user.id, "CONSULTATION_AUDIT", "Journal",
                {"page": page, "total_entrees_filtrees": total_entries, 
                 "filtres": {"start": start_date, "end": end_date, "user": user_id, "action": action_filter}})
     
     total_pages = (total_entries + per_page - 1) // per_page
     
-    # Convert UTC times to local for display
     from datetime import timedelta
     from src.config import Config
     entries_local = []
@@ -502,7 +435,6 @@ def index():
         }
         entries_local.append(type('obj', (object,), entry_dict)())
 
-    # Préparation des paramètres de filtrage pour le template
     filters = {
         'start_date': start_date,
         'end_date': end_date,
@@ -522,27 +454,42 @@ def index():
 @audit_bp.route('/verifier', methods=('GET', 'POST'))
 @permission_required('audit.verify')
 def verify():
-    """Vérifie l'intégrité du journal d'audit."""
-    from flask import g
+    """
+    # Audit : Interface de déclenchement manuel de la vérification d'intégrité.
+    """
+    if request.method == 'GET':
+        return render_template('audit/verify.html', result=None)
+
     valide, erreurs = verifier_integrite()
+    session = obtenir_session()
+    total = session.query(Journal).count()
+    session.close()
+
+    result = {
+        'valid': valide,
+        'total': total,
+        'invalid': len(erreurs),
+        'invalid_entries': [e['id'] for e in erreurs if 'id' in e] if not valide else []
+    }
     
-    # Logger la vérification d'intégrité
+    # Audit : Enregistrement du résultat de la vérification (Succès/Échec).
     if valide:
         log_action(g.user.id, "VERIFICATION_INTEGRITE_AUDIT", "Journal",
-                   {"resultat": "valide", "nb_entrees_verifiees": "toutes"})
+                   {"resultat": "valide", "nb_entrees_verifiees": total})
         flash('L\'intégrité du journal d\'audit est validée.', 'success')
     else:
         log_action(g.user.id, "VERIFICATION_INTEGRITE_AUDIT", "Journal",
-                   {"resultat": "compromis", "nb_erreurs": len(erreurs), "erreurs": erreurs[:5]})
+                   {"resultat": "compromis", "nb_erreurs": len(erreurs)})
         flash(f'L\'intégrité du journal est compromise ! {len(erreurs)} erreur(s) détectée(s).', 'danger')
     
-    return render_template('audit/verify.html', valide=valide, erreurs=erreurs)
+    return render_template('audit/verify.html', result=result)
 
 @audit_bp.route('/<int:id>')
 @permission_required('audit.view')
 def view(id):
-    """Affiche les détails d'une entrée d'audit."""
-    from flask import g
+    """
+    # Audit : Consultation détaillée d'un enregistrement spécifique.
+    """
     session = obtenir_session()
     entry = session.query(Journal)\
         .options(joinedload(Journal.utilisateur))\
@@ -554,11 +501,10 @@ def view(id):
         flash('Entrée d\'audit introuvable.', 'danger')
         return redirect(url_for('audit.index'))
     
-    # Logger la consultation de cette entrée
+    # Audit : Traçabilité de la consultation d'un log spécifique.
     log_action(g.user.id, "CONSULTATION_AUDIT", f"Entrée {id}",
                {"entry_id": id, "action_consultee": entry.action})
     
-    # Parser les détails JSON si présents
     details = None
     if entry.details:
         try:
@@ -566,11 +512,9 @@ def view(id):
         except:
             details = entry.details
     
-    # Convert to local time for display
     from datetime import timedelta
     from src.config import Config
     
-    # Create user object if available
     user_obj = None
     if entry.utilisateur:
         user_obj = type('obj', (object,), {
@@ -595,12 +539,13 @@ def view(id):
 @audit_bp.route('/clotures')
 @permission_required('audit.view')
 def clotures():
-    """Affiche la liste des clôtures journalières."""
+    """
+    # Audit : Visualisation des points de clôture cryptographiques journaliers.
+    """
     session = obtenir_session()
     clotures = session.query(ClotureJournal).order_by(desc(ClotureJournal.date)).all()
     session.close()
     
-    # Vérifier l'intégrité globale des clôtures
     res = verifier_clotures()
     if isinstance(res, tuple) and len(res) == 3:
         tout_valide, erreurs, ids_invalides = res
@@ -617,7 +562,9 @@ def clotures():
 @audit_bp.route('/cloturer-hier', methods=('POST',))
 @permission_required('audit.verify')
 def cloturer_hier():
-    """Déclenche la clôture de la journée d'hier."""
+    """
+    # Audit : Déclenchement manuel de la clôture pour la veille.
+    """
     succes, message = cloturer_journee()
     if succes:
         flash(message, 'success')
@@ -642,4 +589,5 @@ if __name__ == '__main__':
     else:
         print("Intégrité du journal : INVALIDE")
         for err in erreurs:
-            print(f"  - {err}")
+            message = err.get('message', str(err))
+            print(f"  - {message}")

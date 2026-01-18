@@ -1,91 +1,280 @@
-# 🏦 Présentation du Projet : Système de Gestion Bancaire Sécurisée
+# 🎤 Script de Présentation Technique — SecureBank (10–12 min)
 
-> Ce document résume les fonctionnalités clés et la structure du projet pour la soutenance devant l'enseignant.
-
----
-
-## 1. Vue d'Ensemble 🌟
-Une application web bancaire interne conçue avec une priorité absolue sur la **sécurité**, la **traçabilité** et la **flexibilité**. Elle permet de gérer les clients et leurs finances tout en protégeant le système contre les fraudes et les erreurs humaines.
-
-## 2. Piliers du Projet ✅
-
-- **Gestion Bancaire (CRUD)** : Clients, Comptes et Transactions.
-- **Sécurité Avancée** : Double validation (Maker-Checker), Authentification Multi-Facteurs (MFA), Mode Panique, Maintenance.
-- **Transparence & Audit** : Registre immuable avec signatures cryptographiques (HMAC).
-- **Flexibilité (Policy Layer)** : Paramétrage du système en temps réel sans redémarrage.
-- **Qualité Logicielle** : Tests automatisés (Pytest) et déploiement conteneurisé (Docker).
+> **Objectif :** présenter le projet de manière fluide, sans se perdre, avec démonstration **step-by-step**.  
+> **Style :** pas de blabla, phrases courtes, démonstration guidée.
 
 ---
 
-## 3. Fonctionnalités Détaillées 🔧
+## 0) Préparation (AVANT d’entrer)
 
-### 📑 Gestion Administrative
-- **Utilisateurs & Rôles** : Accès différencié pour les Administrateurs (contrôle total) et les Opérateurs (exécution).
-- **Clients & Comptes** : Cycle de vie complet (ouverture, modification, clôture).
-- **Authentification Multi-Facteurs (MFA)** : 
-    - Support TOTP (Google Authenticator, Authy).
-    - Système de codes de secours (Backup Codes) à usage unique, hachés en base de données pour plus de sécurité.
+✅ Tout doit être prêt :
 
-### 💸 Opérations & Contrôle de Fraude
-- **Transactions** : Dépôts et retraits avec vérification du solde minimum et des plafonds.
-- **Maker-Checker (Validation croisée)** : Les opérations sensibles doivent être approuvées par un second utilisateur (le "Checker").
-- **Contrôle de Vélocité** : Limitation automatique du nombre de transactions par minute pour bloquer les robots ou les fraudes massives.
+- Projet déjà lancé (Docker)
+- Navigateur ouvert sur **Login**
+- **Deux sessions séparées** (recommandé) :
+  - Fenêtre / Profil 1 : `operator1` (Maker)
+  - Fenêtre / Profil 2 : `admin1` ou `superadmin1` (Checker)
+- MFA prêt (Google Authenticator / Authy) si possible
 
-### ⚙️ Pilotage Dynamique (Policy Layer)
-- **Tableau de Bord des Politiques** : Modification instantanée des plafonds de retrait, des délais de session ou des messages système.
-- **Mode Panique** : Un "bouton rouge" pour geler toutes les activités sensibles instantanément en cas d'attaque suspectée.
-- **Mode Maintenance** : Interface dédiée pour informer les utilisateurs des travaux en cours.
-
-### 🔍 Audit & Intégrité des Données
-- **Chaine de Confiance** : Chaque log d’audit est lié au précédent (Hash Chaining).
-- **Signature HMAC** : Détection immédiate de toute tentative de modification directe dans la base de données.
-- **Clôture Journalière** : Génération d'un "hash racine" quotidien signé, rendant le passé immuable (Proof of Intactness).
+🎯 Objectif : zéro perte de temps pendant la soutenance.
 
 ---
 
-## 4. Guide de Démonstration (Script Suggéré) 🎯
+## 1) Introduction (45–60 sec)
 
-1. **Connexion & MFA** : Se connecter, activer le MFA dans le profil, montrer le QR Code et la génération des codes de secours. Se déconnecter et montrer la seconde étape de validation. Simuler la perte de l'appareil en utilisant un **code de secours** via la page de récupération dédiée.
-2. **Action Opérateur** : Créer un client et un compte. Tenter un retrait dépassant le plafond habituel.
-3. **Flux Maker-Checker** : Montrer que le retrait est "En attente". Se déconnecter/reconnecter avec un autre compte pour approuver l'opération.
-4. **Configuration en Direct** : Aller dans les "Policies", changer le message de bienvenue ou activer la maintenance, et montrer le changement immédiat.
-5. **Preuve d'Audit** : Consulter le journal d'audit, expliquer la présence des hashs et lancer la vérification d'intégrité pour prouver que les données n'ont pas été altérées.
+🎤 **À dire :**
 
----
+Bonjour.  
+Aujourd’hui je vais présenter mon projet : un système bancaire interne sécurisé, réalisé comme **prototype académique**.  
+L’objectif n’est pas seulement de faire du CRUD, mais surtout de démontrer des mécanismes de sécurité et de traçabilité proches du domaine bancaire.
 
-## 5. Commandes Utiles pour la Présentation ⛏️
+Les mécanismes clés sont :  
+1) **MFA** (TOTP + backup codes),  
+2) **Maker–Checker** pour sécuriser les opérations sensibles,  
+3) **Audit vérifiable** basé sur hash chaining + HMAC pour détecter toute altération,  
+4) **Protection contre les attaques** : anti brute-force (limitation des tentatives de login) et mitigation anti-abus / anti-DDoS au niveau application via rate limiting.
 
-- **Lancer le projet** :
-  ```bash
-  docker-compose up --build
-  ```
-- **Lancer la suite de tests (Preuve de stabilité)** :
-  ```bash
-  docker exec -it secure_bank_manager python -m pytest tests/
-  ```
-- **Peupler la base avec des données de test** :
-  ```bash
-  python scripts/seed_dev_users.py --force
-  ```
+Je vais maintenant faire une démonstration complète étape par étape.
 
 ---
 
-## 6. Points Techniques pour la Discussion 🧠
-- **Backend** : Flask (Python) pour la rapidité et la modularité.
-- **Base de données** : SQLite avec une couche d'abstraction pour faciliter une future migration.
-- **Sécurité & Crypto** : 
-    - **Mots de passe & Backup Codes** : Bcrypt pour le hachage sécurisé.
-    - **Audit** : HMAC-SHA256 pour garantir l'intégrité des logs.
-    - **MFA** : Implémentation TOTP (RFC 6238) via `pyotp` et génération de QR Codes avec `qrcode`.
-- **Front-end** : Bootstrap 5 pour une interface claire, moderne et responsive.
+## 2) Lancement / Environnement reproductible (20–30 sec)
+
+🎤 **À dire :**
+
+Je lance l’application via Docker pour garantir un environnement reproductible.
+
+✅ **Action (Terminal) :**
+```bash
+docker-compose up --build
+```
+
+(Si déjà lancé : juste montrer que Docker tourne, pas besoin de rebuild.)
 
 ---
 
-## 7. Checklist de Soutenance ✅
-- [ ] Présentation du Dashboard
-- [ ] Activation et test du MFA (TOTP + Codes de secours)
-- [ ] Démonstration d'un retrait avec Maker-Checker
-- [ ] Modification d'une politique en temps réel
-- [ ] Activation du Mode Panique
-- [ ] Validation de l'intégrité de l'Audit
-- [ ] Passage des tests unitaires
+## 3) Connexion + RBAC (1 min)
+
+✅ **Action :** se connecter dans la fenêtre Opérateur (operator1)
+
+🎤 **À dire :**
+
+Le système utilise un contrôle d’accès RBAC avec trois rôles : Opérateur, Admin et SuperAdmin, selon le principe du moindre privilège.
+Ici je suis connecté en tant qu’Opérateur : je peux exécuter les opérations métier, mais je ne peux pas modifier la sécurité ni les policies globales.
+
+✅ **Action :**
+
+Montrer sur le dashboard que les pages sensibles ne sont pas accessibles à l’opérateur (policies, panic mode, gestion roles).
+
+---
+
+## 4) MFA (2 min)
+
+🎯 Premier “effet sécurité”.
+
+### 4A) Activation MFA
+
+✅ **Action :**
+
+Aller dans Profile / Security / MFA
+
+🎤 **À dire :**
+
+Je vais activer la MFA basée sur TOTP, compatible Google Authenticator / Authy.
+
+✅ **Action :**
+
+- Montrer QR Code
+- Scanner / entrer code OTP
+
+### 4B) Backup Codes
+
+✅ **Action :**
+
+Afficher backup codes
+
+🎤 **À dire :**
+
+En plus du TOTP, le système génère des backup codes à usage unique pour la récupération.
+Ils sont stockés hachés en base, comme un mot de passe, donc ils ne sont pas lisibles même avec un accès direct à la base.
+
+### 4C) Seconde étape login
+
+✅ **Action :**
+
+- Logout/login rapide
+- Montrer l’écran OTP
+
+🎤 **À dire :**
+
+On voit ici la deuxième étape MFA obligatoire après le mot de passe.
+
+---
+
+## 5) CRUD rapide (client + compte) (1 min)
+
+✅ **Action :**
+
+- Clients → Create : “Client Demo”
+- Accounts → Create : solde initial (ex : 500)
+
+🎤 **À dire :**
+
+Ici on a la partie CRUD : création d’un client puis ouverture d’un compte bancaire.
+
+---
+
+## 6) Transaction sensible + Maker–Checker (3 min)
+
+🎯 Partie la plus importante après audit.
+
+### 6A) Initier un retrait (Maker)
+
+✅ **Action (Opérateur) :**
+
+- Transactions → Withdraw
+- Montant : (ex : 400 ou supérieur au plafond)
+
+🎤 **À dire :**
+
+Maintenant je crée un retrait. Cette opération est sensible : elle ne sera pas exécutée directement.
+Elle passe par Maker–Checker.
+
+✅ **Action :**
+
+Confirmer
+
+### 6B) Statut Pending
+
+✅ **Action :**
+
+Pending approvals / Transactions pending
+
+🎤 **À dire :**
+
+On voit que l’opération est en statut Pending.
+L’Opérateur ne peut pas valider sa propre opération.
+
+### 6C) Validation (Checker)
+
+✅ **Action (Fenêtre Admin/SuperAdmin) :**
+
+- Ouvrir Pending approvals
+- Approve
+
+🎤 **À dire :**
+
+Je valide maintenant l’opération en tant qu’Admin (Checker).
+Le fait qu’un second utilisateur valide réduit fortement les risques de fraude interne.
+
+✅ **Action :**
+
+Retour au compte, montrer le solde mis à jour.
+
+---
+
+## 7) Policy Layer (1–2 min)
+
+✅ **Action (SuperAdmin de préférence) :**
+
+Policies → Changer une règle :
+- Withdrawal limit OU
+- Welcome message OU
+- Session timeout
+
+🎤 **À dire :**
+
+Le Policy Layer permet de modifier les règles du système en temps réel, sans redémarrage.
+C’est utile dans un contexte bancaire : limites, sécurité, messages.
+
+✅ **Action :**
+
+Revenir au dashboard et montrer que le changement s’applique immédiatement.
+
+---
+
+## 8) Panic Mode (1 min)
+
+✅ **Action (SuperAdmin) :**
+
+Security → Panic Mode → Activate
+
+🎤 **À dire :**
+
+En cas d’attaque suspectée, le SuperAdmin peut activer le Panic Mode :
+toutes les opérations sensibles sont gelées immédiatement.
+
+✅ **Action :**
+
+Sur fenêtre opérateur, tenter un retrait → bloqué
+
+🎤 **À dire :**
+
+Ici on voit que le système bloque l’action : c’est une réponse rapide aux incidents.
+
+(Désactiver si nécessaire.)
+
+---
+
+## 9) Audit & Integrity Proof (2–3 min)
+
+🎯 Partie “niveau ingénieur”.
+
+✅ **Action :**
+
+Audit logs → Afficher log du retrait
+
+🎤 **À dire :**
+
+Chaque action importante génère un audit log.
+Mais ici l’objectif n’est pas seulement d’enregistrer : c’est de garantir l’intégrité du journal.
+
+✅ **Action :**
+
+Montrer `previous_hash` + `hash` + `hmac`
+
+🎤 **À dire :**
+
+Chaque log contient le hash du log précédent (hash chaining) et une signature HMAC-SHA256.
+Donc si quelqu’un modifie un log directement dans la base, la vérification échoue.
+
+✅ **Action :**
+
+Verify integrity / Audit verification
+
+🎤 **À dire :**
+
+Je lance maintenant la vérification automatique : le système prouve que l’historique n’a pas été modifié.
+
+⚠️ **Phrase importante :**
+Ce n’est pas “physiquement immuable”, mais c’est tamper-evident : toute altération devient détectable.
+
+---
+
+## 10) Tests (45 sec – 1 min)
+
+✅ **Action (Terminal) :**
+```bash
+docker exec -it secure_bank_manager python -m pytest tests/
+```
+
+🎤 **À dire :**
+
+Et pour la qualité, j’ai une suite de tests Pytest sur les parties critiques.
+
+---
+
+## Conclusion (15–20 sec)
+
+🎤 **À dire :**
+
+Pour conclure, ce projet démontre des mécanismes bancaires réels :
+MFA, Maker–Checker, policies dynamiques, panic mode et audit vérifiable.
+Merci. Je suis prêt pour vos questions.
+
+---
+
+## Cheat-sheet (si stress)
+
+**Ordre à retenir :**
+Login → MFA → CRUD → Withdraw Pending → Approve → Policies → Panic → Audit Verify → Pytest

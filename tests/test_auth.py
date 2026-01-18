@@ -48,6 +48,7 @@ def extract_csrf_token(response):
 from src.db import obtenir_session, reinitialiser_base_donnees
 from src.models import Utilisateur, RoleUtilisateur
 from src.config import Config
+from src.policy import set_policy, invalidate_cache
 from passlib.hash import bcrypt
 
 class TestAuthentification(unittest.TestCase):
@@ -58,27 +59,47 @@ class TestAuthentification(unittest.TestCase):
         """Configuration initiale avant tous les tests."""
         app.config['TESTING'] = True
         app.config['WTF_CSRF_ENABLED'] = False
+        
+        # Disable MFA roles for tests to avoid redirection
+        set_policy('mfa.roles_obligatoires', [], type_='json', comment='test-setup')
+        invalidate_cache()
 
-        # Ensure an admin user exists for tests (do not rely on printed dev credentials)
+        # Ensure an admin user exists for tests
         session = obtenir_session()
         existing = session.query(Utilisateur).filter_by(nom_utilisateur='admin').first()
         if not existing:
             admin = Utilisateur(
                 nom_utilisateur='admin',
                 mot_de_passe_hash=bcrypt.hash('admin123'),
-                role=RoleUtilisateur.ADMIN
+                role=RoleUtilisateur.ADMIN,
+                tentatives_connexion=0,
+                verrouille_jusqu_a=None
             )
             session.add(admin)
             session.commit()
         else:
-            # Ensure the admin has a known password for tests
+            # Ensure the admin has a known password for tests and is not locked
             existing.mot_de_passe_hash = bcrypt.hash('admin123')
+            existing.tentatives_connexion = 0
+            existing.verrouille_jusqu_a = None
             session.commit()
         session.close()
+
+    @classmethod
+    def tearDownClass(cls):
+        # Restore MFA roles
+        set_policy('mfa.roles_obligatoires', ['admin', 'superadmin'], type_='json', comment='test-teardown')
+        invalidate_cache()
         
     def setUp(self):
         """Configuration avant chaque test."""
         self.client = app.test_client()
+        # Patch policies to disable MFA during auth/RBAC tests
+        self.patch_mfa = patch('src.policy_helpers.get_policy', return_value=[])
+        self.patch_mfa.start()
+        
+    def tearDown(self):
+        self.patch_mfa.stop()
         
     def test_login_page_accessible(self):
         """Vérifie que la page de connexion est accessible."""
@@ -88,12 +109,27 @@ class TestAuthentification(unittest.TestCase):
         
     def test_login_valide(self):
         """Teste la connexion avec des identifiants valides."""
+        import time
+        username = f'admin_test_{int(time.time())}'
+        password = 'admin123'
+        
+        # Ensure user exists with correct hash
+        session = obtenir_session()
+        u = Utilisateur(
+            nom_utilisateur=username,
+            mot_de_passe_hash=bcrypt.hash(password),
+            role=RoleUtilisateur.ADMIN
+        )
+        session.add(u)
+        session.commit()
+        session.close()
+
         # Get CSRF token first
         resp_get = self.client.get('/auth/login')
         token = extract_csrf_token(resp_get)
         response = self.client.post('/auth/login', data={
-            'username': 'admin',
-            'password': 'admin123',
+            'username': username,
+            'password': password,
             'csrf_token': token
         }, follow_redirects=True)
         
@@ -255,9 +291,11 @@ class TestAuthentification(unittest.TestCase):
             'csrf_token': tok
         })
         
-        # Tester l'accès à audit (devrait être autorisé pour voir)
+        # Tester l'accès à audit (devrait être REFUSE pour un opérateur)
         response = self.client.get('/audit/')
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 302) # Redirection car accès refusé
+        # we expect redirect to home (which is endpoint 'home' mapping to '/')
+        self.assertIn(response.location, ['/', 'http://localhost/'])
         
         # Mais pas pour vérifier l'intégrité
         response = self.client.get('/audit/verifier', follow_redirects=True)

@@ -49,17 +49,17 @@ function showManagementModal(config) {
     submit.textContent = config.submitText;
     submit.style.cssText = config.submitStyle;
     
-    // Handle extra hidden fields (like 'statut')
+   
     if (config.extraField) {
         extraInput.name = config.extraField.name;
         extraInput.value = config.extraField.value;
-        extraInput.style.display = 'inline'; // Ensure it's active in the form mapping
+        extraInput.style.display = 'inline'; 
     } else {
         extraInput.name = "";
         extraInput.value = "";
     }
     
-    // Populate reasons with a default empty option
+    
     let options = '<option value="" disabled selected>-- Sélectionner une raison --</option>';
     options += config.reasons.map(r => `<option value="${r}">${r}</option>`).join('');
     select.innerHTML = options;

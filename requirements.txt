@@ -28,3 +28,12 @@ Flask-WTF==1.1.1
 
 # Rate limiting
 Flask-Limiter==2.9.0
+
+# Qr code generation
+qrcode==7.3.1
+Pillow==10.0.0
+
+# TOTP (2FA)
+pyotp==2.8.0
+
+

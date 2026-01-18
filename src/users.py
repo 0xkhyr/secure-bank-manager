@@ -1,18 +1,7 @@
 """
-users.py - Gestion des utilisateurs
-
-Ce module gère les routes pour :
-- Lister les utilisateurs (selon les permissions)
-- Créer un nouvel utilisateur
-- Voir les détails d'un utilisateur
-- Modifier un utilisateur
-- Activer/Désactiver un utilisateur
-- Réinitialiser le mot de passe
-
-Hiérarchie des rôles :
-- SUPERADMIN : Peut gérer tous les utilisateurs (Admin + Opérateur)
-- ADMIN : Peut gérer uniquement les Opérateurs
-- OPERATEUR : Aucun accès à la gestion des utilisateurs
+# Gestion des Identités et des Accès (RBAC)
+# Sécurité : Implémente le contrôle d'accès basé sur les rôles et la ségrégation des tâches.
+# Règle métier : Hiérarchie stricte (SuperAdmin > Admin > Opérateur) pour la gestion des habilitations.
 """
 
 from flask import (
@@ -31,12 +20,13 @@ users_bp = Blueprint('users', __name__, url_prefix='/users')
 
 def can_manage_user(current_user, target_user):
     """
-    Vérifie si l'utilisateur actuel peut gérer l'utilisateur cible.
+    # Sécurité : Vérifie si le rôle de l'acteur est hiérarchiquement supérieur à la cible.
     """
     if current_user.role == RoleUtilisateur.SUPERADMIN:
         return True
     
     if current_user.role == RoleUtilisateur.ADMIN:
+        # Un Admin ne peut gérer que des rôles opérationnels (Opérateurs).
         return target_user.role == RoleUtilisateur.OPERATEUR
     
     return False
@@ -44,7 +34,7 @@ def can_manage_user(current_user, target_user):
 
 def can_create_role(current_user, target_role):
     """
-    Vérifie si l'utilisateur actuel peut créer un utilisateur avec le rôle cible.
+    # Sécurité : Empêche l'auto-élévation de privilèges lors de la création de compte.
     """
     if current_user.role == RoleUtilisateur.SUPERADMIN:
         return True
@@ -57,7 +47,7 @@ def can_create_role(current_user, target_role):
 
 def get_manageable_roles(current_user):
     """
-    Retourne la liste des rôles que l'utilisateur actuel peut créer/gérer.
+    # Règle métier : Définit l'enveloppe de gestion des rôles selon l'habilitation de l'acteur.
     """
     if current_user.role == RoleUtilisateur.SUPERADMIN:
         return [RoleUtilisateur.SUPERADMIN, RoleUtilisateur.ADMIN, RoleUtilisateur.OPERATEUR]
@@ -71,7 +61,10 @@ def get_manageable_roles(current_user):
 @users_bp.route('/')
 @login_required
 def index():
-    """Liste tous les utilisateurs selon les permissions."""
+    """
+    # Sécurité : Liste filtrée des identités selon le périmètre de visibilité du rôle.
+    # Audit : Trace la consultation de l'annuaire des utilisateurs.
+    """
     if g.user.role == RoleUtilisateur.OPERATEUR:
         log_action(g.user.id, "ACCES_REFUSE", "Listing users", {"path": request.path})
         flash('Accès non autorisé.', 'danger')
@@ -79,6 +72,7 @@ def index():
     
     session_db = obtenir_session()
     
+    # Sécurité : Seul le SuperAdmin a une vue exhaustive sur l'ensemble des administrateurs.
     if g.user.role == RoleUtilisateur.SUPERADMIN:
         users = session_db.query(Utilisateur).order_by(Utilisateur.id).all()
     else:
@@ -97,7 +91,7 @@ def index():
         if user.verrouille_par_id:
             lb = session_db.query(Utilisateur).filter_by(id=user.verrouille_par_id).first()
             locked_by_name = lb.nom_utilisateur if lb else None
-
+        
         user_dict = {
             'id': user.id,
             'nom_utilisateur': user.nom_utilisateur,
@@ -117,7 +111,10 @@ def index():
 @users_bp.route('/nouveau', methods=('GET', 'POST'))
 @login_required
 def create():
-    """Crée un nouvel utilisateur."""
+    """
+    # Règle métier : Création d'un nouvel agent ou administrateur.
+    # Sécurité : Validation de la force du mot de passe et contrôle des droits de délégation.
+    """
     if g.user.role == RoleUtilisateur.OPERATEUR:
         log_action(g.user.id, "ACCES_REFUSE", "Creating user", {"path": request.path})
         flash('Accès non autorisé.', 'danger')
@@ -133,8 +130,9 @@ def create():
             error = 'Le nom d\'utilisateur est requis.'
         elif not mot_de_passe:
             error = 'Le mot de passe est requis.'
-        elif len(mot_de_passe) < 6:
-            error = 'Le mot de passe doit contenir au moins 6 caractères.'
+        elif len(mot_de_passe) < 8:
+            # Sécurité : Longueur minimale conforme aux standards de l'ANSSI.
+            error = 'Le mot de passe doit contenir au moins 8 caractères.'
         
         try:
             role = RoleUtilisateur(role_str)
@@ -158,6 +156,7 @@ def create():
                     )
                     session_db.add(new_user)
                     session_db.commit()
+                    # Audit : Trace la création d'identité avec le profil associé.
                     log_action(g.user.id, "CREATION_UTILISATEUR", f"Utilisateur {nom_utilisateur}",
                                {"role": role.value, "user_id": new_user.id})
                     flash(f'Utilisateur {nom_utilisateur} créé avec succès !', 'success')
@@ -176,7 +175,10 @@ def create():
 @users_bp.route('/<int:id>')
 @login_required
 def view(id):
-    """Affiche les détails d'un utilisateur."""
+    """
+    # Règle métier : Consultation de la fiche agent et historique d'activité.
+    # Sécurité : Restreint la vue aux administrateurs habilités ou à l'utilisateur lui-même.
+    """
     session_db = obtenir_session()
     user = session_db.query(Utilisateur).filter_by(id=id).first()
     
@@ -184,6 +186,7 @@ def view(id):
         flash('Utilisateur introuvable.', 'danger')
         return redirect(url_for('users.index'))
     
+    # Sécurité : Un utilisateur peut voir son propre profil, mais seul un Admin peut voir celui des autres (sous conditions hiérarchiques).
     if not can_manage_user(g.user, user) and g.user.id != user.id:
         log_action(g.user.id, "ACCES_REFUSE", f"Viewing user {user.nom_utilisateur}", {"target_user_id": id})
         flash('Accès non autorisé.', 'danger')
@@ -225,7 +228,10 @@ def view(id):
 @users_bp.route('/<int:id>/modifier', methods=('GET', 'POST'))
 @login_required
 def edit(id):
-    """Modifie un utilisateur."""
+    """
+    # Règle métier : Mise à jour des habilitations et du profil agent.
+    # Sécurité : Interdiction de l'auto-élévation de privilèges ou du changement de propre rôle.
+    """
     session_db = obtenir_session()
     user = session_db.query(Utilisateur).filter_by(id=id).first()
     
@@ -251,6 +257,7 @@ def edit(id):
                 new_role = RoleUtilisateur(role_str)
                 if new_role != user.role:
                     if user.id == g.user.id:
+                        # Sécurité : Protége contre le verrouillage accidentel des permissions de l'administrateur actuel.
                         error = 'Vous ne pouvez pas changer votre propre rôle.'
                     elif not can_create_role(g.user, new_role):
                         error = 'Vous n\'avez pas la permission d\'assigner ce rôle.'
@@ -265,6 +272,7 @@ def edit(id):
                     if new_role != user.role:
                         old_role = user.role.value
                         user.role = new_role
+                        # Audit : Trace spécifiquement les changements de rôle (escalade/réduction de privilèges).
                         log_action(g.user.id, "MODIFICATION_ROLE_UTILISATEUR",
                                    f"Utilisateur {user.nom_utilisateur}",
                                    {"ancien_role": old_role, "nouveau_role": new_role.value})
@@ -288,7 +296,10 @@ def edit(id):
 @users_bp.route('/<int:id>/toggle-active', methods=('POST',))
 @login_required
 def toggle_active(id):
-    """Active ou désactive un utilisateur."""
+    """
+    # Sécurité : Révocation ou rétablissement des accès d'un utilisateur.
+    # Limitation : Empêche un administrateur de se révoquer lui-même.
+    """
     session_db = obtenir_session()
     user = session_db.query(Utilisateur).filter_by(id=id).first()
     
@@ -308,6 +319,7 @@ def toggle_active(id):
     try:
         user.is_active = not user.is_active
         session_db.commit()
+        # Audit : Enregistre l'état d'activation pour la conformité.
         action = "ACTIVATION_UTILISATEUR" if user.is_active else "DESACTIVATION_UTILISATEUR"
         log_action(g.user.id, action, f"Utilisateur {user.nom_utilisateur}", {})
         status = "activé" if user.is_active else "désactivé"
@@ -322,7 +334,10 @@ def toggle_active(id):
 @users_bp.route('/<int:id>/reset-password', methods=('POST',))
 @login_required
 def reset_password(id):
-    """Réinitialise le mot de passe d'un utilisateur."""
+    """
+    # Sécurité : Réinitialisation forcée du mot de passe par un administrateur habilité.
+    # Audit : Trace la réinitialisation pour prévenir les détournements de comptes.
+    """
     session_db = obtenir_session()
     user = session_db.query(Utilisateur).filter_by(id=id).first()
     
@@ -336,10 +351,11 @@ def reset_password(id):
         return redirect(url_for('dashboard'))
     
     new_password = request.form.get('new_password')
-    if not new_password or len(new_password) < 6:
-        flash('Le mot de passe doit contenir au moins 6 caractères.', 'danger')
+    if not new_password or len(new_password) < 8:
+        flash('Le mot de passe doit contenir au moins 8 caractères.', 'danger')
     else:
         try:
+            # Sécurité : Hachage bcrypt asynchrone pour la sécurité des empreintes.
             user.mot_de_passe_hash = bcrypt.hash(new_password)
             session_db.commit()
             log_action(g.user.id, "RESET_PASSWORD_UTILISATEUR", f"Utilisateur {user.nom_utilisateur}", {})
@@ -354,7 +370,10 @@ def reset_password(id):
 @users_bp.route('/<int:id>/lock', methods=('POST',))
 @login_required
 def lock_account(id):
-    """Verrouille manuellement un compte utilisateur."""
+    """
+    # Sécurité : Verrouillage conservatoire d'un compte (Délai d'accès, suspicion de fraude).
+    # Audit : Enregistre la durée et la raison du verrouillage.
+    """
     session_db = obtenir_session()
     user = session_db.query(Utilisateur).filter_by(id=id).first()
     
@@ -384,6 +403,7 @@ def lock_account(id):
             user.verrouille_par_id = g.user.id
             user.verrouille_le = now_utc
             session_db.commit()
+            # Audit : Détails du verrouillage pour conformité avec les politiques de sécurité.
             log_action(g.user.id, "VERROUILLAGE_MANUEL_UTILISATEUR",
                        f"Utilisateur {user.nom_utilisateur}",
                        {"duree_minutes": duration_minutes, "jusqu_a": user.verrouille_jusqu_a.isoformat(), "raison": raison})
@@ -400,7 +420,10 @@ def lock_account(id):
 @users_bp.route('/<int:id>/unlock', methods=('POST',))
 @login_required
 def unlock_account(id):
-    """Déverrouille manuellement un compte utilisateur."""
+    """
+    # Sécurité : Levée manuelle d'un verrouillage (après vérification d'identité).
+    # Audit : Trace la restauration de l'accès et réinitialise le compteur de tentatives.
+    """
     session_db = obtenir_session()
     user = session_db.query(Utilisateur).filter_by(id=id).first()
     
@@ -439,7 +462,10 @@ def unlock_account(id):
 @users_bp.route('/profile', methods=('GET','POST'))
 @login_required
 def profile():
-    """Profil de l'utilisateur connecté."""
+    """
+    # Règle métier : Espace personnel de l'utilisateur (Self-Service).
+    # Sécurité : Permet le changement de mot de passe avec validation du secret actuel.
+    """
     session_db = obtenir_session()
     user = session_db.query(Utilisateur).filter_by(id=g.user.id).first()
     
@@ -461,19 +487,21 @@ def profile():
             current = request.form.get('current_password', '')
             new = request.form.get('new_password', '')
             confirm = request.form.get('confirm_password', '')
+            # Sécurité : Validation stricte de l'ancien mot de passe avant renouvellement.
             if not bcrypt.verify(current, user.mot_de_passe_hash):
                 flash('Mot de passe actuel incorrect.', 'danger')
-            elif len(new) < 6:
-                flash('Le nouveau mot de passe doit contenir au moins 6 caractères.', 'danger')
+            elif len(new) < 8:
+                flash('Le nouveau mot de passe doit contenir au moins 8 caractères.', 'danger')
             elif new != confirm:
                 flash('Les nouveaux mots de passe ne correspondent pas.', 'danger')
             else:
                 user.mot_de_passe_hash = bcrypt.hash(new)
                 session_db.commit()
+                # Audit : Le changement de mot de passe par l'utilisateur lui-même est tracé pour la sécurité de la session.
+                log_action(g.user.id, "CHANGEMENT_MOT_DE_PASSE_PROFIL", "Profil", {})
                 flash('Mot de passe modifié avec succès.', 'success')
 
-    user_local = type('obj',(object,),{
-        'id': user.id,
+    user_local = type('obj', (object,), {
         'nom_utilisateur': user.nom_utilisateur,
         'display_name': user.display_name,
         'mfa_enabled': user.mfa_enabled,

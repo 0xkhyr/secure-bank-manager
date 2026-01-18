@@ -1,10 +1,8 @@
 """
-auth.py - Gestion de l'authentification et des autorisations
+Module d'authentification et de contrôle d'accès.
 
-Ce module gère :
-- La connexion et la déconnexion des utilisateurs
-- La gestion de la session utilisateur
-- Les décorateurs pour protéger les routes (login_required, admin_required)
+Gère le cycle de vie des sessions, l'authentification multi-facteurs (MFA),
+la protection contre les attaques par force brute et l'autorisation par rôles (RBAC).
 """
 
 import functools
@@ -21,17 +19,13 @@ from src.models import Utilisateur, RoleUtilisateur
 from src.config import Config
 from datetime import datetime, timedelta
 
-# Generic message used to avoid username enumeration
+# Sécurité : Message générique pour prévenir l'énumération d'utilisateurs.
 GENERIC_LOGIN_ERROR = "Nom d'utilisateur ou mot de passe invalide."
 
-# Création du Blueprint pour l'authentification
 auth_bp = Blueprint('auth', __name__, url_prefix='/auth')
 
 def login_required(view):
-    """
-    Décorateur pour restreindre l'accès aux utilisateurs connectés.
-    Redirige vers la page de connexion si l'utilisateur n'est pas authentifié.
-    """
+    """Exige une session active pour accéder à la vue."""
     @functools.wraps(view)
     def wrapped_view(**kwargs):
         if g.user is None:
@@ -42,15 +36,14 @@ def login_required(view):
     return wrapped_view
 
 def admin_required(view):
-    """
-    Décorateur pour restreindre l'accès aux administrateurs et superadmins uniquement.
-    """
+    """Limite l'accès aux administrateurs (ADMIN/SUPERADMIN)."""
     @functools.wraps(view)
     def wrapped_view(**kwargs):
         if g.user is None:
             return redirect(url_for('auth.login'))
         
         if g.user.role not in [RoleUtilisateur.ADMIN, RoleUtilisateur.SUPERADMIN]:
+            # Audit : Trace des tentatives d'accès non autorisées aux fonctions administratives.
             from src.audit_logger import log_action
             log_action(g.user.id, "ACCES_REFUSE", "Admin required", {"path": request.path})
             flash("Accès refusé : Vous devez être administrateur.", "danger")
@@ -61,16 +54,14 @@ def admin_required(view):
     return wrapped_view
 
 def operateur_required(view):
-    """
-    Décorateur pour restreindre l'accès aux opérateurs (ou admins/superadmins).
-    """
+    """Limite l'accès aux fonctions métier (OPERATEUR et plus)."""
     @functools.wraps(view)
     def wrapped_view(**kwargs):
         if g.user is None:
             return redirect(url_for('auth.login'))
         
-        # Les admins et superadmins ont aussi accès aux fonctions opérateurs
         if g.user.role not in [RoleUtilisateur.OPERATEUR, RoleUtilisateur.ADMIN, RoleUtilisateur.SUPERADMIN]:
+            # Audit : Trace des accès refusés aux opérations métier.
             from src.audit_logger import log_action
             log_action(g.user.id, "ACCES_REFUSE", "Operateur required", {"path": request.path})
             flash("Accès refusé.", "danger")
@@ -81,14 +72,9 @@ def operateur_required(view):
     return wrapped_view
 
 
-# Mapping de permissions basique (role -> set de permissions)
-# Use explicit permission strings so we can grant/revoke in the future. By default,
-# only SUPERADMIN has full wildcard privileges. Admin keeps the typical operator
-# permissions (can be extended later), while policy management is a separate
-# fine-grained permission `policies.manage` which is only granted to SUPERADMIN
-# by default.
+# Sécurité : Mapping granulaire des permissions par rôle pour respecter le principe du moindre privilège.
 PERMISSION_MAP = {
-    RoleUtilisateur.SUPERADMIN.name: {'*'},  # SuperAdmin a toutes les permissions
+    RoleUtilisateur.SUPERADMIN.name: {'*'},
     RoleUtilisateur.ADMIN.name: {
         'clients.view', 'clients.create', 'clients.update',
         'clients.deactivate','clients.reactivate','clients.archive',
@@ -104,21 +90,16 @@ PERMISSION_MAP = {
         'accounts.view', 'accounts.create', 'accounts.close',
         'operations.create', 'operations.view'
     },
-    # Fine-grained client administrative permissions placeholders
     'clients.suspend': set(),
     'clients.deactivate': set(),
     'clients.archive': set(),
     'clients.reactivate': set(),
-    # Policy management permission (superadmin-only by default)
     'policies.history': set(),
 }
 
 
 def has_permission(user, perm: str) -> bool:
-    """Vérifie si l'utilisateur a la permission demandée.
-
-    Pour l'instant, utilise un mapping en mémoire. '*' signifie toutes les permissions.
-    """
+    """Vérifie l'attribution d'une permission spécifique selon le rôle."""
     if user is None:
         return False
     role_name = user.role.name if hasattr(user.role, 'name') else str(user.role)
@@ -127,9 +108,9 @@ def has_permission(user, perm: str) -> bool:
 
 
 def permission_required(perm: str):
-    """Décorateur qui vérifie la permission `perm` pour l'utilisateur courant.
+    """Décorateur de contrôle d'accès basé sur les permissions.
 
-    En cas d'accès refusé, enregistre un log d'audit `ACCES_REFUSE` et redirige.
+    Audit : Enregistre une trace ACCES_REFUSE en cas d'autorisation insuffisante.
     """
     def decorator(view):
         @functools.wraps(view)
@@ -141,7 +122,6 @@ def permission_required(perm: str):
                 return redirect(url_for('auth.login'))
 
             if not has_permission(g.user, perm):
-                # Loguer l'accès refusé
                 try:
                     log_action(g.user.id if g.user else None, 'ACCES_REFUSE', perm, {'path': request.path})
                 except Exception:
@@ -156,21 +136,19 @@ def permission_required(perm: str):
 
 @auth_bp.before_app_request
 def load_logged_in_user():
-    """
-    Fonction exécutée avant chaque requête.
-    Charge l'utilisateur depuis la base de données si son ID est dans la session.
-    Vérifie également l'expiration de session.
+    """Charge l'utilisateur en session et gère l'expiration d'inactivité.
+
+    Limitation : Force la déconnexion automatique si SESSION_TIMEOUT est atteint.
     """
     user_id = session.get('user_id')
 
     if user_id is None:
         g.user = None
     else:
-        # Vérifier l'expiration de session
         last_activity = session.get('last_activity')
         if last_activity:
             if datetime.utcnow() - datetime.fromisoformat(last_activity) > timedelta(seconds=Config.SESSION_TIMEOUT):
-                # Logger l'expiration avant de clear
+                # Audit : Trace de la fin de session pour inactivité.
                 try:
                     from src.audit_logger import log_action
                     duree = (datetime.utcnow() - datetime.fromisoformat(last_activity)).total_seconds()
@@ -182,23 +160,17 @@ def load_logged_in_user():
                 g.user = None
                 return
         
-        # Mettre à jour l'activité
         session['last_activity'] = datetime.utcnow().isoformat()
         
         db_session = obtenir_session()
         g.user = db_session.query(Utilisateur).filter_by(id=user_id).first()
-        # Note: Don't close the session here as it might interfere with view functions
-        # The scoped session will be cleaned up automatically
 
 @auth_bp.route('/login', methods=('GET', 'POST'))
 def login():
-    """
-    Route de connexion.
-    Gère l'affichage du formulaire et le traitement de la soumission.
-    """
-    # Si déjà connecté, redirection vers l'accueil
+    """Gère l'authentification initiale et les protections contre les attaques par force brute."""
     if g.user:
         return redirect(url_for('home'))
+        
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
@@ -206,91 +178,81 @@ def login():
         db_session = obtenir_session()
         error = None
         
-        # Recherche de l'utilisateur
         user = db_session.query(Utilisateur).filter_by(nom_utilisateur=username).first()
         
         if user is None:
-            # Avoid revealing whether the username exists
+            # Sécurité : Utilise un message générique pour éviter l'énumération des noms d'utilisateurs.
             error = GENERIC_LOGIN_ERROR
-            # Audit - tentative de connexion échouée (utilisateur inexistant)
+            # Audit : Trace de l'échec de connexion (utilisateur non trouvé).
             from src.audit_logger import log_action
             log_action(None, "ECHEC_CONNEXION", "Système", 
                       {"nom_utilisateur": username, "raison": "utilisateur_inexistant", "user_id": None})
         else:
             user_id_local = user.id
-            # Vérifier si le compte est actif
             if not user.is_active:
-                # Do not reveal account state to the client
                 error = GENERIC_LOGIN_ERROR
-                # Audit - tentative de connexion sur compte inactif
+                # Audit : Tentative sur un compte désactivé.
                 from src.audit_logger import log_action
                 log_action(user_id_local, "ECHEC_CONNEXION", "Système",
                           {"nom_utilisateur": username, "user_id": user_id_local, "raison": "compte_inactif"})
-            # Vérifier si le compte est verrouillé
+
             elif user.est_verrouille():
-                # Do not reveal that the account is locked to the client; use a generic message
                 error = GENERIC_LOGIN_ERROR
-                # Audit - tentative sur compte verrouillé
+                # Audit : Tentative sur un compte déjà sous verrouillage temporaire.
                 from src.audit_logger import log_action
                 log_action(user_id_local, "ECHEC_CONNEXION", "Système",
                           {"nom_utilisateur": username, "user_id": user_id_local, "raison": "compte_verrouille"})
+
             elif not bcrypt.verify(password, user.mot_de_passe_hash):
-                # Use generic message so we don't reveal whether username or password was incorrect
                 error = GENERIC_LOGIN_ERROR
-                # Gestion des tentatives échouées et verrouillage
+                # Sécurité : Incrémentation du compteur de tentatives pour le ralentissement ou verrouillage.
                 user.tentatives_connexion = (user.tentatives_connexion or 0) + 1
-                # Si on atteint le maximum, verrouiller le compte
+                
                 if user.tentatives_connexion >= Config.MAX_LOGIN_ATTEMPTS:
+                    # Sécurité : Verrouillage automatique après dépassement du seuil MAX_LOGIN_ATTEMPTS.
                     from src.audit_logger import log_action
                     now_utc = datetime.utcnow()
                     user.verrouille_jusqu_a = now_utc + timedelta(minutes=Config.LOCKOUT_MINUTES)
                     user.verrouille_raison = 'trop_de_tentatives'
                     user.verrouille_le = now_utc
                     user.verrouille_par_id = None
-                    # Optionnel : reset counter after locking
                     user.tentatives_connexion = 0
                     db_session.commit()
 
-                    # Audit - verrouillage automatique
+                    # Audit : Trace du verrouillage automatique du compte.
                     try:
                         log_action(user_id_local, "VERROUILLAGE_AUTO_UTILISATEUR", "Système",
                                   {"nom_utilisateur": username, "user_id": user_id_local, "raison": "trop_de_tentatives", "duree_minutes": Config.LOCKOUT_MINUTES, "jusqu_a": user.verrouille_jusqu_a.isoformat()})
                     except Exception:
                         pass
-
-                    # Keep a generic error message for the user (do not reveal lock details)
-                    error = GENERIC_LOGIN_ERROR
                 else:
                     db_session.commit()
-                    # Audit - mauvais mot de passe
+                    # Audit : Mot de passe incorrect.
                     from src.audit_logger import log_action
                     log_action(user_id_local, "ECHEC_CONNEXION", "Système",
                               {"nom_utilisateur": username, "user_id": user_id_local, "raison": "mot_de_passe_incorrect"})
             
-            # Vérifier si le compte était verrouillé et se déverrouille automatiquement
             was_locked = user.verrouille_jusqu_a is not None
 
-            # Si une erreur a été détectée plus haut, ne pas procéder à la connexion
             if error:
                 flash(error, 'danger')
             else:
-                # Mise à jour des infos de connexion
                 user.derniere_connexion = datetime.utcnow()
                 user.tentatives_connexion = 0
                 user.verrouille_jusqu_a = None
                 db_session.commit()
 
-                # Audit - déverrouillage automatique si applicable
+                # Audit : Déverrouillage automatique après expiration du délai de bannissement.
                 if was_locked:
                     from src.audit_logger import log_action
                     log_action(user_id_local, "DEVERROUILLAGE_AUTO", "Système",
                               {"nom_utilisateur": username, "user_id": user_id_local, "raison": "expiration_lockout"})
 
-                # Audit - connexion réussie (étape 1)
+                # Audit : Authentification par mot de passe réussie (Étape 1).
                 from src.audit_logger import log_action
                 log_action(user_id_local, "CONNEXION_STEP1", "Système", {"nom_utilisateur": username, "user_id": user_id_local})
 
-                # Vérifier si MFA est activé ou obligatoire pour ce rôle
+                # Sécurité : Vérification de l'obligation du second facteur selon la politique ou le choix utilisateur.
                 from src.policy_helpers import get_policy
                 mfa_roles = get_policy('mfa.roles_obligatoires', default=[])
                 role_name = user.role.value if hasattr(user.role, 'value') else str(user.role)
@@ -299,47 +261,40 @@ def login():
 
                 if mfa_required:
                     if not user.mfa_enabled:
-                        # MFA obligatoire mais pas encore configuré
+                        # Règle métier : Forcer la configuration MFA si elle est exigée par le rôle.
                         session['mfa_setup_user_id'] = user_id_local
                         flash("La double authentification est obligatoire pour votre rôle. Veuillez la configurer.", "warning")
                         return redirect(url_for('auth.mfa_setup'))
                     
-                    # MFA activé et configuré : demander le code
+                    # Sécurité : Redirection vers le challenge MFA.
                     session['mfa_user_id'] = user_id_local
                     return redirect(url_for('auth.mfa_verify'))
 
-                # Connexion standard (MFA non requis)
                 session['user_id'] = user_id_local
                 session['last_activity'] = datetime.utcnow().isoformat()
                 flash('Connexion réussie !', 'success')
                 return redirect(url_for('home'))
 
         if error:
-            # Avoid flashing the exact same message multiple times in the session
             existing = session.get('_flashes') or []
             if not any(c == 'danger' and m == error for c, m in existing):
                 flash(error, 'danger')
 
     return render_template('auth/login.html')
 
-# Apply rate limit to the login endpoint at import time to avoid decorator ordering/circular import issues
 try:
     from src.app import limiter
     if limiter:
-        # Wrap the login view with the configured login rate limit
+        # Limitation : Protection anti-abus par limitation du débit de requêtes sur le login.
         login = limiter.limit(getattr(Config, 'LOGIN_RATE_LIMIT', '10 per minute'))(login)
 except Exception:
-    # If Flask-Limiter is not available or import fails, keep behavior unchanged
     pass
 
 @auth_bp.route('/logout')
 def logout():
-    """
-    Route de déconnexion.
-    Efface la session et redirige vers la connexion.
-    """
-    # Audit - déconnexion
+    """Réinitialise la session et enregistre la déconnexion."""
     if g.user:
+        # Audit : Trace de déconnexion volontaire.
         from src.audit_logger import log_action
         log_action(g.user.id, "DECONNEXION", "Système", {"nom_utilisateur": g.user.nom_utilisateur, "user_id": g.user.id})
     
@@ -350,7 +305,7 @@ def logout():
 
 @auth_bp.route('/mfa/verify', methods=('GET', 'POST'))
 def mfa_verify():
-    """Vérification du code MFA après la saisie du login/pass."""
+    """Valide le second facteur (TOTP) ou un code de secours."""
     user_id = session.get('mfa_user_id')
     if not user_id:
         return redirect(url_for('auth.login'))
@@ -360,13 +315,12 @@ def mfa_verify():
         db_session = obtenir_session()
         user = db_session.query(Utilisateur).get(user_id)
 
-        # 1. Vérification du code TOTP standard
+        # Sécurité : Vérification du code TOTP dynamique (RFC 6238).
         is_totp_valid = user and pyotp.TOTP(user.mfa_secret).verify(code)
         
-        # 2. Vérification des codes de secours si le TOTP échoue
         is_backup_valid = False
         if user and not is_totp_valid and user.mfa_backup_codes:
-            # On nettoie le code de secours (souvent saisi avec des espaces ou en minuscules)
+            # Sécurité : Les codes de secours sont hachés avec bcrypt pour protéger l'accès physique à la base.
             clean_code = code.strip().upper()
             hashed_list = user.mfa_backup_codes.split(',')
             new_hashed_list = []
@@ -374,20 +328,20 @@ def mfa_verify():
             for h in hashed_list:
                 if not is_backup_valid and bcrypt.verify(clean_code, h):
                     is_backup_valid = True
-                    # On ne rajoute pas ce code (il est utilisé)
                 else:
                     new_hashed_list.append(h)
             
             if is_backup_valid:
+                # Sécurité : Un code de secours est à usage unique et supprimé immédiatement après validation.
                 user.mfa_backup_codes = ",".join(new_hashed_list)
                 db_session.commit()
 
         if is_totp_valid or is_backup_valid:
-            # Succès MFA
             session.pop('mfa_user_id', None)
             session['user_id'] = user.id
             session['last_activity'] = datetime.utcnow().isoformat()
             
+            # Audit : Trace discriminée selon le mode de validation (TOTP vs Backup).
             from src.audit_logger import log_action
             log_type = "CONNEXION_MFA_SUCCESS" if is_totp_valid else "CONNEXION_BACKUP_CODE"
             log_action(user.id, log_type, "Système", {"user_id": user.id})
@@ -396,6 +350,7 @@ def mfa_verify():
             return redirect(url_for('home'))
         else:
             flash('Code invalide. Veuillez réessayer.', 'danger')
+            # Audit : Tentative MFA échouée.
             from src.audit_logger import log_action
             log_action(user_id, "ECHEC_MFA", "Système", {"user_id": user_id, "raison": "code_invalide"})
 
@@ -404,7 +359,7 @@ def mfa_verify():
 
 @auth_bp.route('/mfa/recovery', methods=('GET', 'POST'))
 def mfa_recovery():
-    """Utilisation d'un code de secours pour se connecter."""
+    """Gère la récupération d'accès via les codes de secours à usage unique."""
     user_id = session.get('mfa_user_id')
     if not user_id:
         return redirect(url_for('auth.login'))
@@ -416,7 +371,6 @@ def mfa_recovery():
 
         is_backup_valid = False
         if user and user.mfa_backup_codes:
-            # On nettoie le code de secours
             clean_code = code.strip().upper()
             hashed_list = user.mfa_backup_codes.split(',')
             new_hashed_list = []
@@ -428,14 +382,15 @@ def mfa_recovery():
                     new_hashed_list.append(h)
             
             if is_backup_valid:
+                # Sécurité : Règle du code à usage unique appliquée ici aussi.
                 user.mfa_backup_codes = ",".join(new_hashed_list)
                 db_session.commit()
 
-                # Succès
                 session.pop('mfa_user_id', None)
                 session['user_id'] = user.id
                 session['last_activity'] = datetime.utcnow().isoformat()
                 
+                # Audit : Utilisation d'un code de secours enregistrée pour surveillance.
                 from src.audit_logger import log_action
                 log_action(user.id, "CONNEXION_BACKUP_CODE", "Système", {"user_id": user.id})
                 
@@ -443,6 +398,7 @@ def mfa_recovery():
                 return redirect(url_for('home'))
 
         flash('Code de secours invalide ou déjà utilisé.', 'danger')
+        # Audit : Tentative de récupération infructueuse.
         from src.audit_logger import log_action
         log_action(user_id, "ECHEC_MFA_RECOVERY", "Système", {"user_id": user_id, "raison": "code_invalide"})
 
@@ -451,9 +407,7 @@ def mfa_recovery():
 
 @auth_bp.route('/mfa/setup', methods=('GET', 'POST'))
 def mfa_setup():
-    """Configuration initiale du MFA (génération du secret et QR code)."""
-    # L'utilisateur doit être soit partiellement connecté (mfa_setup_user_id)
-    # soit déjà totalement connecté (g.user) pour activer le MFA depuis son profil.
+    """Initialise le secret TOTP et génère les codes de secours initiaux."""
     user_id = session.get('mfa_setup_user_id') or (g.user.id if g.user else None)
     
     if not user_id:
@@ -467,7 +421,7 @@ def mfa_setup():
         secret = session.get('temp_mfa_secret')
         
         if secret and pyotp.TOTP(secret).verify(code):
-            # Génération des codes de secours
+            # Sécurité : Génération de 8 codes de secours aléatoires et hachage immédiat.
             import secrets
             recovery_codes = [secrets.token_hex(4).upper() for _ in range(8)]
             hashed_codes = ",".join([bcrypt.hash(c) for c in recovery_codes])
@@ -480,20 +434,18 @@ def mfa_setup():
             session.pop('temp_mfa_secret', None)
             session.pop('mfa_setup_user_id', None)
             
-            # Si on était en train de se connecter, on finit la connexion
             if not g.user:
                 session['user_id'] = user.id
                 session['last_activity'] = datetime.utcnow().isoformat()
             
+            # Audit : Trace d'activation de la MFA pour cet utilisateur.
             from src.audit_logger import log_action
             log_action(user.id, "MFA_ACTIVE", "Utilisateur", {"user_id": user.id})
             
-            # On affiche les codes de secours une seule fois
             return render_template('auth/mfa_setup.html', success=True, recovery_codes=recovery_codes)
         else:
             flash('Code de confirmation invalide. Veuillez scanner à nouveau.', 'danger')
 
-    # Génération d'un nouveau secret si pas encore en session
     if 'temp_mfa_secret' not in session:
         session['temp_mfa_secret'] = pyotp.random_base32()
     

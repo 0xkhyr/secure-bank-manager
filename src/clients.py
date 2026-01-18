@@ -1,10 +1,7 @@
 """
-clients.py - Gestion des clients
-
-Ce module gère les routes pour :
-- Lister les clients
-- Créer un nouveau client
-- Voir les détails d'un client
+# Gestion du Référentiel Clients (KYC)
+# Règle métier : Ce module gère l'enrôlement et la consultation des données clients.
+# Sécurité : Chaque action est tracée en audit pour garantir la conformité aux exigences bancaires.
 """
 
 from flask import (
@@ -20,12 +17,14 @@ clients_bp = Blueprint('clients', __name__, url_prefix='/clients')
 @clients_bp.route('/')
 @login_required
 def index():
-    """Affiche la liste des clients."""
+    """
+    # Règle métier : Indexation et recherche des clients du portefeuille.
+    # Audit : Trace la consultation de la liste des clients pour surveillance des accès.
+    """
     session = obtenir_session()
     clients = session.query(Client).all()
     nb_clients = len(clients)
     
-    # Logger la consultation de la liste
     log_action(g.user.id, "CONSULTATION_LISTE_CLIENTS", "Clients",
                {"nb_clients": nb_clients})
     
@@ -34,7 +33,10 @@ def index():
 @clients_bp.route('/nouveau', methods=('GET', 'POST'))
 @permission_required('clients.create')
 def create():
-    """Crée un nouveau client."""
+    """
+    # Règle métier : Procédure d'entrée en relation (KYC).
+    # Sécurité : Vérifie l'unicité du CIN pour prévenir la fraude d'identité.
+    """
     if request.method == 'POST':
         nom = request.form['nom']
         prenom = request.form['prenom']
@@ -46,9 +48,11 @@ def create():
         session = obtenir_session()
         error = None
 
+        # Règle métier : validation des champs obligatoires pour la conformité.
         if not nom or not prenom or not cin or not telephone:
             error = 'Les champs Nom, Prénom, CIN et Téléphone sont obligatoires.'
         elif session.query(Client).filter_by(cin=cin).first() is not None:
+            # Sécurité : Détection de tentative de doublon d'identité.
             error = f'Un client avec le CIN {cin} existe déjà.'
 
         if error is None:
@@ -63,10 +67,9 @@ def create():
             session.add(nouveau_client)
             session.commit()
             
-            # Récupérer l'ID
             client_id = nouveau_client.id
             
-            # Audit
+            # Audit : Enregistrement de la création avec les attributs d'identité.
             log_action(g.user.id, "CREATION_CLIENT", f"Client {client_id}", 
                        {"nom": nom, "prenom": prenom, "cin": cin})
             
@@ -80,7 +83,10 @@ def create():
 @clients_bp.route('/<int:id>')
 @login_required
 def view(id):
-    """Affiche les détails d'un client et ses comptes."""
+    """
+    # Règle métier : Consultation de la fiche 360° du client et son état de conformité.
+    # Audit : Enregistre l'identité du client consulté à des fins de reporting.
+    """
     session = obtenir_session()
     client = session.query(Client).filter_by(id=id).first()
     
@@ -88,11 +94,9 @@ def view(id):
         flash('Client introuvable.', 'danger')
         return redirect(url_for('clients.index'))
         
-    # Charger les comptes du client
     comptes = session.query(Compte).filter_by(client_id=id).all()
     nb_comptes = len(comptes)
     
-    # Logger la consultation du client
     log_action(g.user.id, "CONSULTATION_CLIENT", f"Client {id}",
                {"client_id": id, "cin": client.cin, "nb_comptes": nb_comptes})
     

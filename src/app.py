@@ -1,8 +1,7 @@
 """
-app.py - Application Flask principale
-
-Point d'entrée de l'application bancaire.
-Configure Flask, initialise la base de données et définit toutes les routes.
+# Point d'Entrée Principal (Boilerplate Flask)
+# Configuration : Initialise le moteur Flask, les extensions de sécurité et les variables d'environnement.
+# Sécurité : Centralise le durcissement (Hardening) des cookies et des en-têtes HTTP.
 """
 
 import json
@@ -19,39 +18,37 @@ from src.policies import policies_bp
 from src.dev import dev_bp
 from src.checker import checker_bp
 
-# Créer l'application Flask
-# On spécifie les dossiers templates et static car app.py est dans src/
+# Initialisation de l'instance Flask avec redirection vers les dossiers sources.
 app = Flask(__name__, template_folder='../templates', static_folder='../static')
 
-# Configuration (utilise la classe Config centralisée)
+# Sécurité : Chargement de la configuration centralisée pour garantir l'immutabilité des paramètres.
 app.config['SECRET_KEY'] = Config.SECRET_KEY
 app.config['DATABASE_PATH'] = Config.DATABASE_PATH
 app.config['DEVISE'] = Config.DEVISE
 
-# Session cookie hardening
-# These values can be controlled via environment variables documented in README
-app.config['SESSION_COOKIE_SECURE'] = Config.SESSION_COOKIE_SECURE
-app.config['SESSION_COOKIE_HTTPONLY'] = Config.SESSION_COOKIE_HTTPONLY
-app.config['SESSION_COOKIE_SAMESITE'] = Config.SESSION_COOKIE_SAMESITE
+# Sécurité : Application des directives OWASP sur le durcissement des cookies de session.
+app.config['SESSION_COOKIE_SECURE'] = Config.SESSION_COOKIE_SECURE         # HTTPS Only
+app.config['SESSION_COOKIE_HTTPONLY'] = Config.SESSION_COOKIE_HTTPONLY     # No JS access
+app.config['SESSION_COOKIE_SAMESITE'] = Config.SESSION_COOKIE_SAMESITE     # CSRF mitigation
 
-# Custom Jinja filter to decode JSON properly
 @app.template_filter('decode_json')
 def decode_json_filter(json_string):
-    """Existing filters above..."""
-    """Decode JSON string and return it properly formatted with UTF-8"""
+    """
+    # Audit : Formate les logs JSON pour une lecture humaine sans altérer l'encodage d'origine.
+    """
     if not json_string:
         return '-'
     try:
-        # Parse JSON and dump it again with ensure_ascii=False to show UTF-8
         data = json.loads(json_string)
         return json.dumps(data, ensure_ascii=False, indent=2)
     except:
         return json_string
 
-# Custom Jinja filter to convert UTC to local time (Tunisia UTC+1)
 @app.template_filter('to_local_time')
 def to_local_time_filter(utc_datetime):
-    """Convert UTC datetime to Tunisia local time (UTC+1)."""
+    """
+    # Audit : Normalisation de l'affichage temporel (UTC vers fuseau configuré).
+    """
     if utc_datetime:
         from datetime import timedelta
         return utc_datetime + timedelta(hours=Config.TIMEZONE_OFFSET_HOURS)
@@ -59,14 +56,16 @@ def to_local_time_filter(utc_datetime):
 
 import secrets
 
-# Add datetime.now as a global function in Jinja2 and expose CSRF token helper
 @app.context_processor
 def inject_now():
-    """Make datetime.now(), timedelta and csrf_token available in all templates."""
+    """
+    # Sécurité : Injection globale de l'utilitaire de protection CSRF.
+    # Fournit également les outils de gestion du temps aux templates Jinja2.
+    """
     from datetime import datetime, timedelta
 
     def generate_csrf_token():
-        # Persist a csrf token per session
+        # Sécurité : Persiste un jeton unique par session pour contrer les attaques CSRF.
         from flask import session
         token = session.get('csrf_token')
         if not token:
@@ -85,17 +84,18 @@ def inject_now():
         'has_permission': has_permission,
     }
 
-
-# Inject pending approbations count for admins (used to display nav badge)
 @app.context_processor
 def inject_pending_approbations():
+    """
+    # Règle métier : Affiche en temps réel le nombre de validations en attente (Maker-Checker).
+    """
     from flask import g
     try:
         if not getattr(g, 'user', None):
             return {}
         if g.user.role.value not in ['admin', 'superadmin']:
             return {}
-        # Use a temporary non-scoped session to avoid interfering with request-scoped sessions
+        
         from src.db import session_factory
         session = session_factory()
         try:
@@ -107,13 +107,11 @@ def inject_pending_approbations():
     except Exception:
         return {}
 
-
-# Inject common policy values into templates (e.g., withdrawal limits)
 @app.context_processor
 def inject_policies():
-    """Expose a small set of commonly-used policy values to templates.
-
-    Keep this minimal — prefer explicit values passed from views for most pages.
+    """
+    # Politique : Injection des règles métier dynamiques accessibles globalement.
+    # Permet au front-end d'ajuster l'affichage selon les limites configurées.
     """
     try:
         from src.policy_helpers import get_policy_int, get_policy_bool
@@ -133,7 +131,6 @@ def inject_policies():
             'PANIC_MESSAGE': get_policy('maintenance.panic_message', default="Le site est en mode panique. Toutes les opérations sont suspendues."),
         }
     except Exception:
-        # If policies fail to load for any reason, return empty dict to avoid breaking templates
         return {}
 
 
@@ -186,59 +183,53 @@ if limiter:
         # Fallback: do nothing if limiter interaction fails
         pass
 
-# Initialize CSRF protection (Flask-WTF) if available
+# Sécurité : Initialisation de la protection CSRF (Flask-WTF).
 try:
     from flask_wtf import CSRFProtect
     csrf = CSRFProtect(app)
 except Exception:
-    # Fallback to a simple in-app CSRF implementation if Flask-WTF is not installed
+    # Limitation : Mécanisme de repli si l'extension Flask-WTF est absente.
     csrf = None
 
-# If Flask-WTF isn't available, enforce CSRF checks manually for unsafe methods
 if csrf is None:
     @app.before_request
     def simple_csrf_protect():
-        # Local imports to avoid NameErrors
+        """
+        # Sécurité : Implémentation manuelle de la protection CSRF.
+        # Vérifie la présence d'un jeton valide pour toute méthode modifiant l'état (POST, PUT, DELETE).
+        """
         from flask import request, abort, g
-        # Only check for unsafe methods
-        # Allow tests to disable CSRF fallback via app config
         if app.config.get('WTF_CSRF_ENABLED') is False:
             return
 
-        # If panic mode is active, short-circuit early so we return 503 (panic) rather than 400 (CSRF)
+        # Sécurité : Le mode "Panic" est prioritaire sur les autres vérifications.
         from src.policy_helpers import get_policy_bool
         from src.policy import get_policy
         if get_policy_bool('maintenance.panic_mode', default=False):
-            # Allow static assets and health endpoint
             if request.path.startswith(app.static_url_path):
                 return
             if request.endpoint == 'health':
                 return
-            # Allow login page so admins can authenticate
             if request.endpoint == 'auth.login':
                 return
-            # Allow the panic page itself
             if request.endpoint == 'panic':
                 return
-            # Admin bypass
             if getattr(g, 'user', None) and getattr(g.user, 'role', None) and g.user.role.value in ['admin', 'superadmin']:
                 return
-            # For unsafe methods, return 503 immediately
             if request.method in ("POST", "PUT", "PATCH", "DELETE"):
                 message = get_policy('maintenance.panic_message', default='Service indisponible pour maintenance')
                 abort(503, description=str(message))
 
         if request.method not in ("POST", "PUT", "PATCH", "DELETE"):
             return
-        # Skip static assets
         if request.path.startswith(app.static_url_path):
             return
         from flask import session
         token = session.get('csrf_token')
         if not token:
-            # No token in session -> reject
             abort(400)
-        # Check form token or header
+        
+        # Sécurité : Validation croisée entre la session et le corps de la requête ou les en-têtes HTTP.
         form_token = request.form.get('csrf_token')
         header_token = request.headers.get('X-CSRF-Token')
         if form_token == token or header_token == token:
@@ -248,14 +239,9 @@ if csrf is None:
 
     @app.before_request
     def maintenance_panic_guard():
-        """Controlled panic mode:
-
-        - When `maintenance.panic_mode` is enabled, **all** endpoints are blocked for non-admins.
-        - Admins/superadmins are allowed to proceed normally.
-        - The login page (`auth.login`), static assets and the health endpoint remain accessible so
-          administrators can authenticate and manage the system.
-        - GET requests from non-admins are redirected to a dedicated `/panic` page (503),
-          while unsafe methods return HTTP 503 with the configured panic message.
+        """
+        # Sécurité : Mode "Panic" (Arrêt d'Urgence).
+        # En cas de compromission suspectée, toutes les opérations sont suspendues pour les non-admins.
         """
         from flask import request, abort, g, redirect, url_for
         from src.policy_helpers import get_policy_bool
@@ -264,34 +250,26 @@ if csrf is None:
         if not get_policy_bool('maintenance.panic_mode', default=False):
             return
 
-        # Allow static assets and health endpoint
         if request.path.startswith(app.static_url_path):
             return
         if request.endpoint == 'health':
             return
 
-        # Always allow the login page so admins can sign in (match by endpoint or path)
         if request.endpoint == 'auth.login' or request.path.startswith(url_for('auth.login')):
             return
 
-
-        # Allow the panic page itself so we don't loop redirects
         if request.endpoint == 'panic' or request.path.startswith(url_for('panic')):
             return
 
-        # Admin/superadmin bypass
+        # Sécurité : Seuls les administrateurs conservent l'accès pour corriger la situation.
         if getattr(g, 'user', None) and getattr(g.user, 'role', None) and g.user.role.value in ['admin', 'superadmin']:
             return
 
-        # For anonymous or non-admin users, block access.
         message = get_policy('maintenance.panic_message', default='Service indisponible pour maintenance')
 
-        # GET requests -> redirect to a friendly panic page (HTML clients)
         if request.method == 'GET':
-            # Redirect to /panic which returns a 503 page with a message
             return redirect(url_for('panic'))
 
-        # Other methods -> explicit 503
         abort(503, description=str(message))
 
 

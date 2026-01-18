@@ -1,8 +1,7 @@
-"""Policy loader and cache
-
-Provides simple functions to read and update policies stored in DB, with a memory cache
-and TTL. Admin code should call `set_policy` to update and `invalidate_cache` to force
-reload.
+"""
+# Gestionnaire de Politiques Sécurisées
+# Politique : Ce module gère les règles métier dynamiques configurables sans redémarrage.
+# Sécurité : Utilise un cache thread-safe pour minimiser les accès base de données et optimiser la performance.
 """
 import json
 import threading
@@ -14,22 +13,22 @@ from src.db import obtenir_session
 from src.models import Politique, HistoriquePolitique
 from src.audit_logger import log_action
 
-# Cache settings
+# Sécurité : Configuration du cache applicatif pour les politiques.
 _CACHE = {}
 _CACHE_LOCK = threading.Lock()
-_CACHE_TTL = 30  # seconds
+_CACHE_TTL = 30  # Durée de vie du cache en secondes
 _CACHE_LOADED_AT = 0
 
 
 def _load_from_db():
-    # Use a *fresh* non-scoped session to avoid closing the request-scoped session
+    """# Politique : Chargement exhaustif des règles actives depuis la persistance."""
     from src.db import session_factory
     session = session_factory()
     try:
         rows = session.query(Politique).filter_by(active=True).all()
         data = {}
         for p in rows:
-            # tenter de décoder JSON lorsque type == json
+            # Règle métier : Cast dynamique selon le type de stockage (JSON, Int, Bool).
             if p.type == 'json':
                 try:
                     data[p.cle] = json.loads(p.valeur)
@@ -50,6 +49,7 @@ def _load_from_db():
 
 
 def _ensure_cache():
+    """# Sécurité : Garantit la fraîcheur des données via un verrou global (Thread-Safety)."""
     global _CACHE_LOADED_AT, _CACHE
     with _CACHE_LOCK:
         if time.time() - _CACHE_LOADED_AT > _CACHE_TTL:
@@ -58,25 +58,25 @@ def _ensure_cache():
 
 
 def get_policy(key: str, default: Any = None) -> Any:
+    """# Politique : Lecture d'une règle. Priorise le cache mémoire."""
     _ensure_cache()
     return _CACHE.get(key, default)
 
 
 def invalidate_cache():
+    """# Sécurité : Force l'actualisation immédiate du cache après une modification critique."""
     global _CACHE_LOADED_AT
     with _CACHE_LOCK:
         _CACHE_LOADED_AT = 0
 
 
 def valider_politique(key: str, value: Any, type_: str = 'string'):
-    """Valide et normalise une politique selon son type et sa clé.
-
-    Retourne (valeur_normalisee_str, type_field).
-    Lève ValueError en cas d'erreur de validation.
+    """
+    # Politique : Validation métier et normalisation avant persistance.
+    # Sécurité : Prévient les erreurs de configuration pouvant affaiblir la sécurité du système.
     """
     # Normalisation par type
     if type_ == 'json' or isinstance(value, (dict, list)):
-        # si c'est une chaîne, essayer de parser
         if isinstance(value, str):
             try:
                 parsed = json.loads(value)
@@ -117,7 +117,7 @@ def valider_politique(key: str, value: Any, type_: str = 'string'):
         type_field = 'string'
         python_value = s
 
-    # Validation par clé (règles métiers)
+    # Règle métier : Vérifications spécifiques par clé (Sanity Checks).
     if key == 'mot_de_passe.duree_validite_jours':
         if not isinstance(python_value, int) or python_value < 1 or python_value > 365:
             raise ValueError('mot_de_passe.duree_validite_jours doit être un entier entre 1 et 365')
@@ -139,15 +139,16 @@ def valider_politique(key: str, value: Any, type_: str = 'string'):
 
 
 def set_policy(key: str, value: Any, type_: str = 'string', description: Optional[str] = None, changed_by: Optional[int] = None, comment: Optional[str] = None):
-    """Create or update a policy and log the change."""
-    # Use a fresh non-scoped session so request-scoped session (g.user) is not closed while handling a request.
+    """
+    # Politique : Met à jour une règle et consigne le changement dans l'historique.
+    # Audit : Chaque modification de politique est tracée avec l'acteur et le motif.
+    """
     from src.db import session_factory
     session = session_factory()
     try:
-        # Validate and normalize
         valeur_str, type_field = valider_politique(key, value, type_)
 
-        # Enforce comment when key requires approval
+        # Sécurité : Exigence d'un commentaire pour les changements sur des clés sensibles.
         try:
             requis = get_policy('changement_politique.requiert_approbation', [])
         except Exception:
@@ -168,13 +169,13 @@ def set_policy(key: str, value: Any, type_: str = 'string', description: Optiona
             session.add(politique)
             session.flush()
 
-        # Ajouter à l'historique
+        # Audit : Historisation systématique de l'évolution des règles.
         hist = HistoriquePolitique(politique_id=politique.id, cle=politique.cle, valeur=valeur_str, type=politique.type, modifie_par=changed_by, commentaire=comment)
         session.add(hist)
 
         session.commit()
 
-        # Audit log
+        # Audit : Consignation de la modification dans le journal d'audit sécurisé.
         details = {"cle": key, "old": ancienne_valeur, "new": valeur_str}
         if comment:
             details['commentaire'] = comment

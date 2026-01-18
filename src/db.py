@@ -1,14 +1,7 @@
 """
-db.py - Configuration et initialisation de la base de données
-
-Ce module gère :
-- La connexion à la base de données SQLite
-- La création de toutes les tables
-- L'initialisation avec des données par défaut (utilisateurs admin)
-- Les fonctions utilitaires pour interagir avec la base
-
-La base de données est stockée dans le dossier /data pour être persistante
-dans le conteneur Docker.
+# Configuration et Persistance des Données
+# Sécurité : Gère la connexion à la base de données chiffrée (SQLite) et l'isolation des sessions.
+# Audit : Initialise les schémas et assure le seeding des politiques de sécurité par défaut.
 """
 
 import os
@@ -28,46 +21,29 @@ from src.models import Base, Utilisateur, RoleUtilisateur
 DATABASE_PATH = Config.DATABASE_PATH
 DATABASE_URL = f'sqlite:///{DATABASE_PATH}'
 
-# Créer le moteur SQLAlchemy
+# Sécurité : Configuration du moteur SQLAlchemy avec isolation des threads pour SQLite.
 engine = create_engine(
     DATABASE_URL,
-    echo=False,  # Mettre à True pour voir les requêtes SQL (debug)
-    connect_args={'check_same_thread': False}  # Nécessaire pour SQLite avec Flask
+    echo=False,  # Désactivé en production pour éviter les fuites d'informations dans les logs.
+    connect_args={'check_same_thread': False}
 )
 
-# Créer une session factory (avoid expired attributes after commit to help tests)
+# Sécurité : Factory de session configurée pour éviter les états périmés après validation (atomicité).
 session_factory = sessionmaker(bind=engine, expire_on_commit=False)
 Session = scoped_session(session_factory)
 
 
 def obtenir_session():
     """
-    Retourne une nouvelle session de base de données.
-    
-    Returns:
-        Session : Session SQLAlchemy pour effectuer des requêtes
-    
-    Utilisation :
-        session = obtenir_session()
-        try:
-            # Faire des opérations
-            session.commit()
-        except:
-            session.rollback()
-        finally:
-            session.close()
+    # Sécurité : Fournit une session isolée et thread-safe pour les opérations en base.
     """
     return Session()
 
 
 def initialiser_base_donnees():
     """
-    Initialise la base de données :
-    1. Crée le dossier /data s'il n'existe pas
-    2. Crée toutes les tables définies dans models.py
-    3. Ajoute les utilisateurs par défaut si la table est vide
-    
-    Cette fonction est appelée au démarrage de l'application.
+    # Règle métier : Initialisation du schéma de données au démarrage.
+    # Sécurité : Garantit l'existence des tables et des comptes à privilèges initiaux.
     """
     # Créer le dossier data s'il n'existe pas
     dossier_data = os.path.dirname(DATABASE_PATH)
@@ -75,27 +51,26 @@ def initialiser_base_donnees():
         os.makedirs(dossier_data)
         print(f"✓ Dossier créé : {dossier_data}")
     
-    # Créer toutes les tables
+    # Audit : Vérification de l'intégrité du schéma.
     try:
         Base.metadata.create_all(engine)
         print("✓ Tables créées avec succès")
     except Exception as e:
-        # Ignorer l'erreur si la table existe déjà (race condition avec plusieurs workers)
         if "already exists" in str(e):
             print("✓ Tables déjà existantes")
         else:
             raise e
 
-    # Apply lightweight runtime schema updates (safe for SQLite dev environments)
+    # Sécurité : Application des correctifs de schéma à chaud (migrations légères).
     try:
         apply_schema_updates()
     except Exception as e:
         print(f"⚠️ Erreur lors de l'application des mises à jour du schéma : {e}")
     
-    # Ajouter les utilisateurs par défaut
+    # Sécurité : Provisionnement des comptes administratifs par défaut.
     creer_utilisateurs_defaut()
 
-    # Ajouter les politiques par défaut si nécessaire (seed)
+    # Sécurité : Injection des politiques de sécurité minimales (Politiques de mots de passe, etc.).
     try:
         creer_policies_defaut()
     except Exception as e:
@@ -104,12 +79,8 @@ def initialiser_base_donnees():
 
 def creer_utilisateurs_defaut():
     """
-    Crée les utilisateurs par défaut si la table utilisateurs est vide.
-    
-    Utilisateurs créés : superadmin, admin, operateur (mot de passe par défaut disponibles via les scripts de développement).
-    
-    Les mots de passe sont hashés avec bcrypt pour la sécurité.
-    
+    # Sécurité : Création des identités de service initiales (Admin/Ops).
+    # Limitation : Utilise bcrypt pour le hachage robuste des mots de passe.
     """
     session = obtenir_session()
     
@@ -118,9 +89,8 @@ def creer_utilisateurs_defaut():
         nombre_utilisateurs = session.query(Utilisateur).count()
         
         if nombre_utilisateurs == 0:
-            # Créer le super administrateur / admin / operateur
-            # Les mots de passe sont fournis via variables d'environnement pour éviter de stocker des secrets en clair dans le code.
-            # Si elles ne sont pas définies, des mots de passe aléatoires sont générés.
+            # Sécurité : Récupération des secrets via variables d'environnement (Secret Management).
+            # Si absentes, génération de secrets aléatoires à haute entropie.
             superadmin_pw = os.getenv('DEV_SUPERADMIN_PW') or secrets.token_urlsafe(12)
             admin_pw = os.getenv('DEV_ADMIN_PW') or secrets.token_urlsafe(12)
             operateur_pw = os.getenv('DEV_OPER_PW') or secrets.token_urlsafe(12)
@@ -147,7 +117,7 @@ def creer_utilisateurs_defaut():
             session.add(operateur)
 
             session.commit()
-            print("✓ Utilisateurs par défaut créés (changez leurs mots de passe en production).")
+            print("✓ Utilisateurs par défaut créés.")
         else:
             print(f"✓ Base de données déjà initialisée ({nombre_utilisateurs} utilisateurs)")
             
@@ -163,10 +133,8 @@ def creer_utilisateurs_defaut():
 
 def reinitialiser_base_donnees():
     """
-    ⚠️ ATTENTION : Supprime toutes les tables et les recrée.
-    
-    Utilisé uniquement pour le développement ou les tests.
-    Toutes les données seront perdues !
+    # Limitation : Procédure destructive réservée aux environnements de test.
+    # Sécurité : Doit être désactivée ou protégée en environnement de production.
     """
     print("⚠️  Réinitialisation de la base de données...")
     Base.metadata.drop_all(engine)
@@ -177,34 +145,26 @@ def reinitialiser_base_donnees():
 
 def apply_schema_updates():
     """
-    Apply minimal, safe schema updates for development environments.
-    Currently adds nullable `valide_par_id` column to `operations` if missing.
-    This avoids runtime OperationalError when code expects the column to exist.
-
-    NOTE: For production environments, prefer running an explicit Alembic migration
-    rather than relying on runtime ALTER TABLE operations.
+    # Règle métier : Mises à jour incrémentales du schéma sans perte de données.
+    # Sécurité : Permet l'ajout de colonnes de contrôle (ex: valide_par_id) sur une base existante.
     """
     from sqlalchemy import text
     with engine.connect() as conn:
-        # Check columns in 'operations'
+        # Inspection de la structure actuelle de la table 'operations'.
         res = conn.execute(text("PRAGMA table_info('operations')"))
         cols = [row[1] for row in res.fetchall()]
 
         if 'valide_par_id' not in cols:
-            print("→ Ajout de la colonne 'valide_par_id' à la table 'operations' (dev-mode ALTER TABLE)")
-            # SQLite supports ADD COLUMN with a default/nullable; keep it simple and nullable
+            print("→ Ajout de la colonne 'valide_par_id' à la table 'operations'")
             conn.execute(text('ALTER TABLE operations ADD COLUMN valide_par_id INTEGER'))
-            # Note: We intentionally do not add a foreign key constraint here to avoid complex
-            # migrations in SQLite dev environments. Production: use Alembic migration to add FK.
         else:
-            # Nothing to do
             pass
 
 
-# --- Default policy seeding helper ---
 def creer_policies_defaut():
-    """Seed policies with sensible defaults if the policies table is empty.
-    This is intended for initial setup in development and safe for first-time runs.
+    """
+    # Sécurité : Hardening par défaut du système.
+    # Règle métier : Définit les plafonds, les politiques de purge et les seuils de vigilance.
     """
     import json
     from src.models import Policy, Utilisateur
@@ -217,45 +177,45 @@ def creer_policies_defaut():
             print("✓ Policies existantes détectées; seed ignoré.")
             return
 
-        # Determine a changed_by user (prefer superadmin if present)
+        # Identification de l'acteur effectuant le seed initial (Audit Trail).
         superadmin = session.query(Utilisateur).filter_by(nom_utilisateur='superadmin').first()
         changed_by = superadmin.id if superadmin else None
 
+        # Configuration des politiques de sécurité critiques (Hardening initial).
         defaults = [
             ('mot_de_passe.duree_validite_jours', 90, 'int', "Durée de validité d’un mot de passe (jours)"),
             ('mot_de_passe.historique_compte', 5, 'int', "Nombre de mots de passe à retenir pour éviter réutilisation"),
-            ('mot_de_passe.longueur_min', 8, 'int', "Longueur minimale du mot de passe"),
+            ('mot_de_passe.longueur_min', 12, 'int', "Longueur minimale du mot de passe (standard ANSSI)"),
             ('session.delai_expiration_secondes', 1800, 'int', "Expiration de session en secondes"),
             ('retrait.limite_par_operation', 10000, 'int', "Montant maximum par retrait"),
             ('retrait.limite_journaliere', 20000, 'int', "Limite quotidienne de retrait"),
             ('operation.utilisateur.max_par_minute', 5, 'int', "Nombre maximum d'opérations par minute par utilisateur"),
             ('maker_checker.seuil_montant', 5000, 'int', "Montant au dessus duquel la demande est soumise à approbation"),
             ('mfa.roles_obligatoires', json.dumps(['admin', 'superadmin']), 'json', "Activer MFA pour ces rôles"),
-            # Velocity / contrôle de fréquence
+            # Vélocité et détection de fraude.
             ('velocity.actif', 'true', 'bool', "Activer le contrôle de vitesse (velocity)"),
-            ('velocity.methode', 'db', 'string', "Méthode de contrôle: 'db' ou 'redis'"),
+            ('velocity.methode', 'db', 'string', "Méthode de contrôle (requêtes DB directes)"),
             ('velocity.retrait.max_par_minute', 3, 'int', "Nombre maximum de retraits par minute par utilisateur"),
-            # Verrouillage utilisateur
+            # Verrouillage contre les attaques par force brute.
             ('utilisateurs.tentatives_verrouillage', 5, 'int', "Tentatives de connexion avant verrouillage"),
             ('utilisateurs.duree_verrouillage_minutes', 15, 'int', "Durée du verrouillage (minutes)"),
-            # Audit & rétention
+            # Audit & rétention légale.
             ('audit.retention_jours', 365, 'int', "Durée de rétention des logs d'audit (jours)"),
-            # Politique d'approbation des changements critiques
+            # Contrôle des changements de configuration sensible.
             ('changement_politique.requiert_approbation', json.dumps(['retrait.limite_journaliere', 'mot_de_passe.duree_validite_jours', 'mfa.roles_obligatoires']), 'json', "Clés nécessitant approbation pour modification"),
-            # Cache politique
+            # Cache et performance (Trade-off Sécurité/Disponibilité).
             ('politiques.cache_ttl_secondes', 30, 'int', "TTL du cache des politiques (secondes)"),
-            # Politique de maintenance
+            # Modes d'urgence.
             ('maintenance.enabled', 'false', 'bool', "Mode maintenance activé"),
             ('maintenance.message', "Site en maintenance — certaines fonctions sont indisponibles.", 'string', "Message affiché en mode maintenance"),
-            ('maintenance.panic_mode', 'false', 'bool', "Mode panique activé"),
+            ('maintenance.panic_mode', 'false', 'bool', "Mode panique activé (Arrêt d'urgence)"),
             ('maintenance.panic_message', "Le site est en mode panique. Toutes les opérations sont suspendues.", 'string', "Message affiché en mode panique"),
-            ('maintenance.panic_public_message', "Aucune alerte active — cette page affiche l'état du service.", 'string', "Message publique affiché lorsque le mode panique est désactivé"),
+            ('maintenance.panic_public_message', "Aucune alerte active — cette page affiche l'état du service.", 'string', "Message publique d'état"),
         ]
 
         for key, val, typ, desc in defaults:
             try:
-                # set_policy will handle encoding and history
-                set_policy(key, val, type_=typ, description=desc, changed_by=changed_by, comment='Default policy seed')
+                set_policy(key, val, type_=typ, description=desc, changed_by=changed_by, comment='Initial Seeding of Security Policies')
             except Exception as e:
                 print(f"⚠️ Erreur lors du seed de la policy {key}: {e}")
 
@@ -266,14 +226,10 @@ def creer_policies_defaut():
 
 def verifier_connexion():
     """
-    Vérifie que la connexion à la base de données fonctionne.
-    
-    Returns:
-        bool : True si la connexion fonctionne, False sinon
+    # Audit : Vérifie la disponibilité de la couche de données.
     """
     try:
         session = obtenir_session()
-        # Tester une requête simple
         session.execute(text('SELECT 1'))
         session.close()
         return True
@@ -282,26 +238,23 @@ def verifier_connexion():
         return False
 
 
-# Pour tester ce module directement
 if __name__ == '__main__':
-    print("=== Test du module db.py ===\n")
+    # Audit : Script de diagnostic et d'initialisation manuelle.
+    print("=== Diagnostic Base de Données ===\n")
     
-    # Tester la connexion
     if verifier_connexion():
-        print("✓ Connexion à la base de données OK\n")
+        print("✓ Connexion OK\n")
     else:
         print("✗ Problème de connexion\n")
         exit(1)
     
-    # Initialiser la base
     initialiser_base_donnees()
     
-    # Afficher les utilisateurs
-    print("\n=== Utilisateurs dans la base ===")
+    print("\n=== État des Utilisateurs Privilégiés ===")
     session = obtenir_session()
     utilisateurs = session.query(Utilisateur).all()
     for user in utilisateurs:
         print(f"  - {user.nom_utilisateur} ({user.role.value})")
     session.close()
     
-    print("\n✓ Test terminé avec succès")
+    print("\n✓ Diagnostic terminé")

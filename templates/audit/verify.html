@@ -13,7 +13,8 @@
                 <div class="alert alert-success">
                     <h3 style="font-size: 18px; font-weight: 500; margin-bottom: 16px;">✓ Intégrité Vérifiée</h3>
                     <p style="margin-bottom: 8px;"><strong>Total d'entrées vérifiées :</strong> {{ result.total }}</p>
-                    <p style="margin: 0;"><strong>Toutes les signatures sont valides.</strong></p>
+                    <p style="margin-bottom: 16px;"><strong>Toutes les signatures sont valides.</strong></p>
+                    <a href="{{ url_for('audit.verifier_chain') }}" class="btn btn-outline-success">Visualiser la chaîne</a>
                 </div>
                 {% else %}
                 <div class="alert alert-danger">
@@ -22,18 +23,10 @@
                     <p style="margin-bottom: 8px;"><strong>Entrées invalides :</strong> {{ result.invalid }}</p>
                     
                     <div style="margin-top: 12px; display:flex; gap:8px;">
-                        <a href="{{ url_for('audit.verify_chain') }}" class="btn btn-outline-danger">Visualiser la chaîne</a>
-                        <a href="{{ url_for('dev.verify_preview_playbook') }}" class="btn btn-outline-secondary">Voir Playbook</a>
+                        <a href="{{ url_for('audit.verifier_chain') }}" class="btn btn-outline-danger">Visualiser la chaîne</a>
                     </div>
                     
-                    {% if result.invalid_entries %}
-                    <h4 style="font-size: 16px; font-weight: 500; margin-top: 24px; margin-bottom: 12px;">Entrées corrompues :</h4>
-                    <ul style="margin: 0; padding-left: 24px;">
-                        {% for entry_id in result.invalid_entries %}
-                        <li><a href="{{ url_for('audit.view', id=entry_id) }}" style="color: var(--danger);">Entrée #{{ entry_id }}</a></li>
-                        {% endfor %}
-                    </ul>
-                    {% endif %}
+
                 </div>
                 {% endif %}
             {% else %}

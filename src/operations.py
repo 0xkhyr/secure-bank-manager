@@ -1,9 +1,7 @@
 """
-operations.py - Gestion des opérations bancaires
-
-Ce module gère les routes pour :
-- Effectuer un dépôt sur un compte
-- Effectuer un retrait sur un compte (avec vérification des limites)
+# Gestion des Opérations Bancaires
+# Règle métier : Ce module implémente la logique transactionnelle (Dépôts, Retraits).
+# Sécurité : Applique les contrôles de limites, de vélocité et le workflow Maker-Checker.
 """
 
 from flask import (
@@ -23,8 +21,8 @@ operations_bp = Blueprint('operations', __name__, url_prefix='/operations')
 @permission_required('operations.create')
 def depot(compte_id):
     """
-    Effectue un dépôt sur un compte.
-    Aucune limite de montant pour les dépôts.
+    # Règle métier : Crédit d'un compte client (Dépôt).
+    # Sécurité : Vérifie que le compte et le titulaire ne sont pas sous sanction ou bloqués.
     """
     session = obtenir_session()
     compte = session.query(Compte).filter_by(id=compte_id).first()
@@ -33,14 +31,14 @@ def depot(compte_id):
         flash('Compte introuvable.', 'danger')
         return redirect(url_for('clients.index'))
     
-    # Vérifier que le compte est actif
+    # Sécurité : Interdiction de créditer un compte inactif ou gelé.
     if compte.statut.value != 'actif':
         log_action(g.user.id, "ECHEC_DEPOT", f"Compte {compte.numero_compte}",
                    {"raison": "compte_inactif", "statut": compte.statut.value})
         flash('Opération impossible : le compte n\'est pas actif.', 'danger')
         return redirect(url_for('accounts.view', numero_compte=compte.numero_compte))
 
-    # VERIFICATION: Le client doit être actif pour effectuer un dépôt
+    # Sécurité : Vérifie l'habilitation du titulaire selon les politiques de conformité.
     titulaire_statut = compte.client.statut.value
     if titulaire_statut != 'actif':
         log_action(g.user.id, "ECHEC_DEPOT", f"Compte {compte.numero_compte}",
@@ -66,6 +64,7 @@ def depot(compte_id):
 
         if error is None:
             try:
+                # Audit : Chaque dépôt réussi génère une écriture comptable et une trace d'audit.
                 success, msg_or_op = effectuer_operation(compte.id, montant, TypeOperation.DEPOT, g.user.id, description)
                 
                 if success:
@@ -83,7 +82,7 @@ def depot(compte_id):
         if error is not None:
             flash(error, 'danger')
     else:
-        # GET request - Logger l'accès au formulaire
+        # Audit : Traçabilité de l'intention d'opération (accès au formulaire).
         log_action(g.user.id, "ACCES_FORMULAIRE_DEPOT", f"Compte {compte.numero_compte}",
                    {"compte_id": compte_id, "numero_compte": compte.numero_compte})
     
@@ -95,8 +94,8 @@ def depot(compte_id):
 @permission_required('operations.create')
 def retrait(compte_id):
     """
-    Effectue un retrait sur un compte.
-    Vérifie les limites de retrait et le solde minimum.
+    # Règle métier : Débit d'un compte client (Retrait).
+    # Sécurité : Contrôle des plafonds de retrait et du seuil Maker-Checker.
     """
     session = obtenir_session()
     compte = session.query(Compte).filter_by(id=compte_id).first()
@@ -105,14 +104,14 @@ def retrait(compte_id):
         flash('Compte introuvable.', 'danger')
         return redirect(url_for('clients.index'))
     
-    # Vérifier que le compte est actif
+    # Sécurité : Un compte clôturé ou suspecté ne peut subir de débit.
     if compte.statut.value != 'actif':
         log_action(g.user.id, "ECHEC_RETRAIT", f"Compte {compte.numero_compte}",
                    {"raison": "compte_inactif", "statut": compte.statut.value})
         flash('Opération impossible : le compte n\'est pas actif.', 'danger')
         return redirect(url_for('accounts.view', numero_compte=compte.numero_compte))
 
-    # VERIFICATION: Le client doit être actif pour effectuer un retrait
+    # Sécurité : Vérifie l'habilitation du titulaire selon les politiques de conformité.
     titulaire_statut = compte.client.statut.value
     if titulaire_statut != 'actif':
         log_action(g.user.id, "ECHEC_RETRAIT", f"Compte {compte.numero_compte}",
@@ -128,7 +127,7 @@ def retrait(compte_id):
         try:
             montant = Decimal(montant_str)
             
-            # Vérifications des règles métier
+            # Règle métier : Application des limites configurées par la banque.
             if montant <= 0:
                 error = 'Le montant doit être supérieur à 0.'
                 log_action(g.user.id, "ECHEC_RETRAIT", f"Compte {compte.numero_compte}",
@@ -138,6 +137,7 @@ def retrait(compte_id):
                 log_action(g.user.id, "ECHEC_RETRAIT", f"Compte {compte.numero_compte}",
                            {"raison": "limite_depassee", "montant": str(montant), "limite": str(Config.RETRAIT_MAXIMUM)})
             elif not compte.peut_retirer(montant):
+                # Sécurité : Empêche le passage en découvert non autorisé (Solde minimum requis).
                 error = f'Solde insuffisant. Le solde minimum autorisé est de {Config.SOLDE_MINIMUM_COMPTE} {Config.DEVISE}.'
                 log_action(g.user.id, "ECHEC_RETRAIT", f"Compte {compte.numero_compte}",
                            {"raison": "solde_insuffisant", "montant": str(montant), "solde": str(compte.solde)})
@@ -147,7 +147,7 @@ def retrait(compte_id):
                        {"raison": "montant_invalide", "montant": montant_str})
 
         if error is None:
-            # INTERCEPTION MAKER-CHECKER : Si le montant dépasse le seuil, on met en attente
+            # Sécurité : Déclenchement automatique du Maker-Checker si le montant dépasse le seuil de vigilance.
             if montant > Config.MAKER_CHECKER_THRESHOLD:
                 from src.checker import soumettre_approbation
                 try:
@@ -168,7 +168,7 @@ def retrait(compte_id):
                     return redirect(url_for('accounts.view', numero_compte=compte.numero_compte))
 
             try:
-                # Exécution normale (si sous le seuil)
+                # Règle métier : Exécution directe si les contrôles automatiques sont validés.
                 success, msg_or_op = effectuer_operation(compte.id, montant, TypeOperation.RETRAIT, g.user.id, description)
                 if success:
                     flash(f'Retrait de {montant} {Config.DEVISE} effectué avec succès !', 'success')
@@ -184,7 +184,7 @@ def retrait(compte_id):
         if error is not None:
             flash(error, 'danger')
     else:
-        # GET request - Logger l'accès au formulaire
+        # Audit : Traçabilité de l'intention d'opération (accès au formulaire).
         log_action(g.user.id, "ACCES_FORMULAIRE_RETRAIT", f"Compte {compte.numero_compte}",
                    {"compte_id": compte_id, "numero_compte": compte.numero_compte, "solde_actuel": str(compte.solde)})
     
@@ -194,14 +194,12 @@ def retrait(compte_id):
 
 def effectuer_operation(compte_id, montant, type_op, user_id, description="", valide_par=None):
     """
-    Fonction cœur pour exécuter une opération bancaire.
-    Peut être appelée par une route ou par le dispatcher Maker-Checker.
-
-    Args:
-        valide_par (int|None): ID de l'admin/checker ayant validé l'opération (optionnel).
+    # Règle métier : Moteur d'exécution atomique des transactions.
+    # Sécurité : Utilise select_for_update() pour prévenir les accès concurrents (Double dépense).
     """
     session = obtenir_session()
     try:
+        # Sécurité : Verrouillage sérialisé de la ligne en base de données pour garantir la cohérence du solde.
         compte = session.query(Compte).filter_by(id=compte_id).with_for_update().first()
         if not compte:
             return False, "Compte introuvable."
@@ -212,7 +210,7 @@ def effectuer_operation(compte_id, montant, type_op, user_id, description="", va
         montant = Decimal(str(montant))
         solde_avant = compte.solde
 
-        # Velocity / rate-limit checks (DB-backed)
+        # Sécurité : Contrôle de vélocité (Rate-Limiting transactionnel).
         try:
             from src.policy_helpers import get_policy_bool, get_policy_int, get_policy
             from datetime import timedelta
@@ -228,11 +226,11 @@ def effectuer_operation(compte_id, montant, type_op, user_id, description="", va
                             Operation.date_operation >= cutoff
                         ).count()
                         if recent_count >= int(limit):
-                            # Log and reject
+                            # Audit : Alerte de vélocité atteinte (suspicion d'automatisation ou d'attaque).
                             log_action(user_id, 'VELOCITY_BLOCK', f"Compte {compte.numero_compte}", {"limit": limit, "recent": recent_count})
                             return False, "Trop de retraits effectués récemment (limite de fréquence atteinte)."
         except Exception:
-            # Fail-open: if the velocity check itself fails, do not block operations
+            # Fail-open: si le vélocity check lui-même échoue, on ne bloque pas les opérations.
             pass
 
         if type_op == TypeOperation.DEPOT:
@@ -252,13 +250,13 @@ def effectuer_operation(compte_id, montant, type_op, user_id, description="", va
             description=description
         )
 
-        # Enregistrer qui a validé (si fourni)
+        # Audit : Enregistrement de l'approbateur si l'opération provient du workflow Maker-Checker.
         if valide_par is not None:
             operation.valide_par_id = int(valide_par)
 
         session.add(operation)
         
-        # Audit
+        # Audit : Persistance de l'état avant/après et des acteurs impliqués.
         extra = {"montant": str(montant), "nouveau_solde": str(compte.solde)}
         if valide_par is not None:
             extra['valide_par'] = int(valide_par)

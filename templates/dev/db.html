@@ -142,6 +142,111 @@
         </div>
     </div>
 
+    <div class="glass-card">
+        <h3 class="mb-4 d-flex align-items-center">
+            <i class="bi bi-pencil-square me-2 text-primary"></i> Modifier une donnée (Quick Fix)
+        </h3>
+        <p class="text-muted small">Utile pour déverrouiller un compte ou ajuster un solde pendant les tests.</p>
+        <form action="{{ url_for('dev.update_value') }}" method="POST" class="row g-3">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="col-md-3">
+                <label class="form-label">Table</label>
+                <select name="table" class="form-select">
+                    <option value="utilisateurs">Utilisateurs</option>
+                    <option value="clients">Clients</option>
+                    <option value="comptes">Comptes</option>
+                    <option value="operations">Opérations</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">ID</label>
+                <input type="number" name="id" class="form-control" placeholder="Ex: 5" required>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Colonne</label>
+                <input type="text" name="column" class="form-control" placeholder="Ex: solde ou role" required>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Nouvelle Valeur</label>
+                <input type="text" name="value" class="form-control" placeholder="Valeur brute" required>
+            </div>
+            <div class="col-md-1 d-flex align-items-end">
+                <button type="submit" class="btn btn-primary w-100">Go</button>
+            </div>
+        </form>
+    </div>
+
+    {% if session.sql_results %}
+    <div class="glass-card">
+        <h3 class="mb-4 text-info"><i class="bi bi-table"></i> Résultats SQL</h3>
+        <code class="d-block mb-3 p-2 bg-dark text-light rounded">{{ session.sql_results.query }}</code>
+        <div class="table-responsive">
+            <table class="table table-sm table-hover border">
+                <thead class="table-light">
+                    <tr>
+                        {% for col in session.sql_results.columns %}
+                        <th>{{ col }}</th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in session.sql_results.rows %}
+                    <tr>
+                        {% for cell in row %}
+                        <td>{{ cell }}</td>
+                        {% endfor %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {# On nettoie les résultats après affichage #}
+        {% set _ = session.pop('sql_results', None) %}
+    </div>
+    {% endif %}
+
+    <div class="glass-card" style="border-left: 5px solid #6366f1;">
+        <h3 class="mb-4 d-flex align-items-center">
+            <i class="bi bi-terminal me-2 text-indigo"></i> Console SQL Brute
+        </h3>
+        <p class="text-muted small">Exécution directe de commandes SQL. Attention : contourne les validations du modèle SQLAlchemy.</p>
+        <form action="{{ url_for('dev.run_sql') }}" method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="mb-3">
+                <textarea name="query" class="form-control font-monospace" rows="3" placeholder="SELECT * FROM utilisateurs WHERE role = 'admin';" required></textarea>
+            </div>
+            <div class="text-end">
+                <button type="submit" class="btn btn-dark">
+                    <i class="bi bi-play-fill"></i> Exécuter la requête
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <div class="glass-card" style="border-left: 5px solid #ef4444; background: rgba(239, 68, 68, 0.05);">
+        <h3 class="mb-4 text-danger d-flex align-items-center">
+            <i class="bi bi-shield-slash-fill me-2"></i> Simulation de Falsification d'Audit
+        </h3>
+        <p class="text-muted small">Cette action simule une attaque directe sur la base de données. Elle modifie une entrée du journal <strong>sans mettre à jour les signatures</strong> cryptographiques (Hash/HMAC).</p>
+        <form action="{{ url_for('dev.break_log') }}" method="POST" class="row g-3 align-items-end">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="col-md-6">
+                <label class="form-label">ID du Log à corrompre</label>
+                <input type="number" name="log_id" class="form-control" placeholder="ID du log (ex: 1)" required>
+            </div>
+            <div class="col-md-6">
+                <button type="submit" class="btn btn-danger w-100">
+                    <i class="bi bi-lightning-charge-fill"></i> Corrompre ce Log
+                </button>
+            </div>
+        </form>
+        <div class="mt-3 text-center">
+            <a href="{{ url_for('audit.verify') }}" class="btn btn-sm btn-outline-secondary">
+                <i class="bi bi-shield-check"></i> Puis vérifier l'intégrité
+            </a>
+        </div>
+    </div>
+
     <div class="danger-zone">
         <div class="row align-items-center">
             <div class="col-lg-8">
@@ -170,7 +275,7 @@
     {% if dev_users %}
     <div class="glass-card mt-4">
         <h4 class="mb-3">Comptes de développement</h4>
-        <p class="text-muted">Ces identifiants sont fournis pour vous aider en développement — <strong>ne les utilisez pas</strong> en production.</p>
+        <p class="text-muted">Identifiants pour développement.</p>
         <div class="row">
             {% for u in dev_users %}
             <div class="col-md-4">

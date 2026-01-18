@@ -1,15 +1,8 @@
 """
-modeles.py - Modèles de base de données pour l'application bancaire
+Définition des modèles de données et des contraintes métier.
 
-Ce module définit tous les modèles SQLAlchemy pour l'application :
-- Utilisateur : Employés utilisant l'application (Admin/Opérateur)
-- Client : Clients de la banque
-- Compte : Comptes bancaires
-- Operation : Historique des opérations (dépôts/retraits)
-- Journal : Journal d'audit sécurisé avec chaîne de hash et HMAC
-
-Tous les modèles utilisent SQLAlchemy ORM pour faciliter les opérations CRUD
-et garantir l'intégrité des données.
+Ce module structure la base de données via SQLAlchemy, en intégrant les mécanismes de 
+sécurité (RBAC, MFA), le workflow Maker-Checker et l'intégrité de l'audit (hash chaining).
 """
 
 from datetime import datetime, timedelta, date as py_date
@@ -19,47 +12,31 @@ import enum
 import secrets
 from src.config import Config
 
-# Base pour tous les modèles SQLAlchemy
 Base = declarative_base()
 
 
 class RoleUtilisateur(enum.Enum):
-    """
-    Énumération des rôles utilisateurs.
-    
-    SUPERADMIN : Accès total - Peut gérer tous les utilisateurs (Admins + Opérateurs)
-    ADMIN : Accès complet - Peut gérer uniquement les Opérateurs
-    OPERATEUR : Accès limité - Consultation + opérations bancaires uniquement
-    """
+    """Rôles définissant les privilèges d'accès dans le système (RBAC)."""
     SUPERADMIN = "superadmin"
     ADMIN = "admin"
     OPERATEUR = "operateur"
 
 
 class TypeOperation(enum.Enum):
-    """
-    Énumération des types d'opérations bancaires.
-    
-    DEPOT : Ajout d'argent sur un compte
-    RETRAIT : Retrait d'argent d'un compte
-    """
+    """Classification des mouvements de fonds."""
     DEPOT = "depot"
     RETRAIT = "retrait"
 
 
 class StatutCompte(enum.Enum):
-    """
-    Énumération des statuts possibles pour un compte bancaire.
-    """
+    """États du cycle de vie d'un compte bancaire."""
     ACTIF = "actif"
     FERME = "ferme"
     SUSPENDU = "suspendu"
 
 
 class StatutClient(enum.Enum):
-    """
-    Énumération des statuts possibles pour un client.
-    """
+    """États administratifs d'un client."""
     ACTIF = "actif"
     INACTIF = "inactif"
     SUSPENDU = "suspendu"
@@ -67,36 +44,25 @@ class StatutClient(enum.Enum):
 
 
 class StatutAttente(enum.Enum):
-    """
-    Énumération des statuts pour le système Maker-Checker.
-    """
+    """États de validation pour le contrôle Maker-Checker (principe des 4 yeux)."""
     PENDING = "PENDING"
     APPROVED = "APPROVED"
     REJECTED = "REJECTED"
     CANCELLED = "CANCELLED"
 
 
-# Générateur de numéro de compte unique
 def gen_numero_compte():
+    """Génère un numéro de compte unique basé sur l'horodatage et l'entropie."""
     return f"CPT{datetime.utcnow().strftime('%y%m%d')}{secrets.randbelow(10**6):06d}"
 
 
 
 class Utilisateur(Base):
     """
-    Modèle Utilisateur : Représente un employé de la banque utilisant l'application.
+    Employé ou administrateur accédant au système.
     
-    Attributs :
-        id : Identifiant unique
-        nom_utilisateur : Nom d'utilisateur (unique)
-        mot_de_passe_hash : Mot de passe hashé avec bcrypt
-        role : Rôle (SUPERSADMIN, ADMIN ou OPERATEUR)
-        date_creation : Date de création du compte
-        derniere_connexion : Dernière connexion
-        tentatives_connexion : Nombre de tentatives de connexion échouées (pour verrouillage)
-    
-    Relations :
-        journaux : Liste des actions effectuées par cet utilisateur
+    Sécurité : Gère le hachage des secrets, le verrouillage de compte (anti brute-force)
+    et les paramètres de l'authentification multi-facteurs (MFA).
     """
     __tablename__ = 'utilisateurs'
     
@@ -109,31 +75,24 @@ class Utilisateur(Base):
     derniere_connexion = Column(DateTime, nullable=True)
     tentatives_connexion = Column(Integer, default=0)
     
-    # Champs pour le verrouillage après tentatives échouées
+    # Sécurité : Contrôle du verrouillage temporaire pour prévenir les attaques de force brute.
     tentatives_echouees = Column(Integer, default=0, nullable=False)
-    verrouille_jusqu_a = Column(DateTime, nullable=True)  # Date de fin de verrouillage (UTC)
-    verrouille_raison = Column(String(500), nullable=True)  # Raison du verrouillage
-    verrouille_par_id = Column(Integer, ForeignKey('utilisateurs.id', ondelete='SET NULL'), nullable=True)  # Admin qui a verrouillé
-    verrouille_le = Column(DateTime, nullable=True)  # Date du verrouillage (UTC)
+    verrouille_jusqu_a = Column(DateTime, nullable=True)
+    verrouille_raison = Column(String(500), nullable=True)
+    verrouille_par_id = Column(Integer, ForeignKey('utilisateurs.id', ondelete='SET NULL'), nullable=True)
+    verrouille_le = Column(DateTime, nullable=True)
 
-    # Profile: display name (optional)
     display_name = Column(String(100), nullable=True)
 
-    # MFA - Authentification à deux facteurs
+    # Sécurité : Paramètres TOTP et codes de secours pour l'authentification forte.
     mfa_enabled = Column(Boolean, default=False, nullable=False)
     mfa_secret = Column(String(32), nullable=True)
-    mfa_backup_codes = Column(Text, nullable=True)  # Codes de secours (hashés séparés par des virgules)
+    mfa_backup_codes = Column(Text, nullable=True)
     
-    # Relations
     journaux = relationship('Journal', back_populates='utilisateur', lazy='dynamic')
     
     def est_verrouille(self):
-        """
-        Vérifie si le compte utilisateur est actuellement verrouillé.
-        
-        Returns:
-            bool : True si le compte est verrouillé, False sinon
-        """
+        """Détermine si l'utilisateur est actuellement banni par le système anti-abus."""
         if self.verrouille_jusqu_a is None:
             return False
         return datetime.utcnow() < self.verrouille_jusqu_a
@@ -144,21 +103,7 @@ class Utilisateur(Base):
 
 class Client(Base):
     """
-    Modèle Client : Représente un client de la banque.
-    
-    Attributs :
-        id : Identifiant unique
-        nom : Nom de famille du client
-        prenom : Prénom du client
-        cin : Numéro de carte d'identité nationale (unique)
-        telephone : Numéro de téléphone
-        email : Adresse email (optionnel)
-        adresse : Adresse postale
-        date_creation : Date de création du profil client
-        date_modification : Date de dernière modification
-    
-    Relations :
-        comptes : Liste des comptes bancaires du client
+    Représentation administrative d'un client bancaire.
     """
     __tablename__ = 'clients'
     
@@ -173,7 +118,6 @@ class Client(Base):
     date_creation = Column(DateTime, default=datetime.utcnow, nullable=False)
     date_modification = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
     
-    # Relations
     comptes = relationship('Compte', back_populates='client', lazy='dynamic', cascade='all, delete-orphan')
     
     def __repr__(self):
@@ -181,29 +125,14 @@ class Client(Base):
     
     @property
     def nom_complet(self):
-        """Retourne le nom complet du client."""
         return f"{self.prenom} {self.nom}"
 
 
 class Compte(Base):
     """
-    Modèle Compte : Représente un compte bancaire.
+    Compte bancaire associé à un client.
     
-    Attributs :
-        id : Identifiant unique
-        numero_compte : Numéro de compte (généré automatiquement, unique)
-        client_id : Référence vers le client propriétaire
-        solde : Solde actuel du compte (doit être >= 250 DT)
-        date_ouverture : Date d'ouverture du compte
-        date_modification : Date de dernière modification
-    
-    Relations :
-        client : Client propriétaire du compte
-        operations : Historique des opérations du compte
-    
-    Règles métier :
-        - Solde initial minimum : 250 DT
-        - Un client peut avoir plusieurs comptes
+    Règle métier : Maintien d'un solde minimum pour garantir la liquidité des comptes.
     """
     __tablename__ = 'comptes'
     
@@ -215,17 +144,11 @@ class Compte(Base):
     date_ouverture = Column(DateTime, default=datetime.utcnow, nullable=False)
     date_modification = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
     
-    # Relations
     client = relationship('Client', back_populates='comptes')
     operations = relationship('Operation', back_populates='compte', lazy='dynamic', cascade='all, delete-orphan')
     
-    
-    # Règles métier (utilise les configurations de .env)
     def peut_retirer(self, montant):
-        """
-        Vérifie si un retrait est possible.
-        Utilise RETRAIT_MAXIMUM depuis la configuration.
-        """
+        """Vérifie le respect du plafond de retrait et du solde minimum configurés."""
         from decimal import Decimal
         montant = Decimal(str(montant))
         
@@ -236,21 +159,19 @@ class Compte(Base):
         return (self.solde - montant) >= Config.SOLDE_MINIMUM_COMPTE
     
     def valider_creation(self, depot_initial):
-        """
-        Valide qu'un dépôt initial respecte SOLDE_MINIMUM_INITIAL.
-        """
+        """Vérifie que le dépôt initial respecte le seuil d'ouverture de compte."""
         from decimal import Decimal
         depot_initial = Decimal(str(depot_initial))
         return depot_initial >= Config.SOLDE_MINIMUM_INITIAL
     
     def valider_depot(self, montant):
-        """Valide qu'un montant de dépôt est positif."""
+        """Validation technique élémentaire du flux entrant."""
         from decimal import Decimal
         montant = Decimal(str(montant))
         return montant > 0
     
     def valider_retrait(self, montant):
-        """Valide qu'un retrait est possible."""
+        """Validation métier consolidée du flux sortant."""
         return self.peut_retirer(montant)
     
     def __repr__(self):
@@ -258,26 +179,9 @@ class Compte(Base):
 
 class Operation(Base):
     """
-    Modèle Operation : Représente une opération bancaire (dépôt ou retrait).
+    Historique des mouvements de fonds (Audit Trail métier).
     
-    Attributs :
-        id : Identifiant unique
-        compte_id : Référence vers le compte concerné
-        utilisateur_id : Référence vers l'utilisateur qui a effectué l'opération
-        type_operation : Type d'opération (DEPOT ou RETRAIT)
-        montant : Montant de l'opération
-        solde_avant : Solde avant l'opération
-        solde_apres : Solde après l'opération
-        date_operation : Date et heure de l'opération
-        description : Description optionnelle
-    
-    Relations :
-        compte : Compte bancaire concerné
-        utilisateur : Utilisateur qui a effectué l'opération
-    
-    Règles métier :
-        - Dépôt : aucune limite
-        - Retrait : maximum 500 DT
+    Règle métier : Application des limites de retrait et traçabilité de l'auteur.
     """
     __tablename__ = 'operations'
     
@@ -291,13 +195,30 @@ class Operation(Base):
     date_operation = Column(DateTime, default=datetime.utcnow, nullable=False)
     description = Column(Text, nullable=True)
     
-    # Relations
     compte = relationship('Compte', back_populates='operations')
-    # Disambiguate foreign key because there is also valide_par_id pointing to utilisateurs
     utilisateur = relationship('Utilisateur', foreign_keys=[utilisateur_id])
     
-    # Champ pour enregistrer qui a validé (checker) l'opération si applicable
+    # Audit : Référence vers l'approbateur (Checker) pour le workflow de validation croisée.
     valide_par_id = Column(Integer, ForeignKey('utilisateurs.id'), nullable=True)
+    valide_par = relationship('Utilisateur', foreign_keys=[valide_par_id])
+
+    def validate_business_rules(self):
+        """Applique les contraintes de retrait et de solde avant exécution."""
+        if self.montant <= 0:
+            raise ValueError("Le montant doit être > 0")
+        
+        if self.type_operation == TypeOperation.DEPOT:
+            pass
+        
+        elif self.type_operation == TypeOperation.RETRAIT:
+            if not self.compte.peut_retirer(self.montant):
+                raise ValueError(
+                    f"Retrait non autorisé : limite {Config.RETRAIT_MAXIMUM} {Config.DEVISE} "
+                    f"ou solde insuffisant (minimum {Config.SOLDE_MINIMUM_COMPTE} {Config.DEVISE})"
+                )
+
+    def __repr__(self):
+        return f"<Operation(id={self.id}, type='{self.type_operation.value}', montant={self.montant} DT)>"
     valide_par = relationship('Utilisateur', foreign_keys=[valide_par_id])
 
     def validate_business_rules(self):
@@ -329,29 +250,10 @@ class Operation(Base):
 
 class Journal(Base):
     """
-    Modèle Journal : Journal d'audit sécurisé pour tracer toutes les actions critiques.
+    Registre d'audit immuable (système tamper-evident).
     
-    Ce modèle implémente un système de chaîne de hash (chain hash) et HMAC
-    pour garantir l'intégrité du journal d'audit et détecter toute falsification.
-    
-    Attributs :
-        id : Identifiant unique (séquentiel pour la chaîne)
-        horodatage : Date et heure de l'action
-        utilisateur_id : Référence vers l'utilisateur qui a effectué l'action
-        action : Type d'action (CONNEXION, CREATION_CLIENT, DEPOT, etc.)
-        cible : Cible de l'action (ex: client_id, compte_id)
-        details : Détails JSON de l'action
-        hash_precedent : Hash de l'entrée précédente (chaîne de hash)
-        hash_actuel : Hash de cette entrée (SHA-256)
-        signature_hmac : Signature HMAC pour détecter les falsifications
-    
-    Relations :
-        utilisateur : Utilisateur qui a effectué l'action
-    
-    Sécurité :
-        - Chaîne de hash : chaque entrée contient le hash de l'entrée précédente
-        - HMAC : signature cryptographique avec clé secrète
-        - Intégrité vérifiable : toute modification casse la chaîne
+    Audit : Implémente le chaînage par hash (SHA-256) et la signature HMAC-SHA256 
+    pour garantir l'intégrité du journal et détecter toute modification a posteriori.
     """
     __tablename__ = 'journaux'
     
@@ -360,12 +262,11 @@ class Journal(Base):
     utilisateur_id = Column(Integer, ForeignKey('utilisateurs.id', ondelete='SET NULL'), nullable=True)
     action = Column(String(100), nullable=False, index=True)
     cible = Column(String(100), nullable=True)
-    details = Column(Text, nullable=True)  # JSON
-    hash_precedent = Column(String(64), nullable=True)  # SHA-256 hash (64 caractères hex)
+    details = Column(Text, nullable=True)
+    hash_precedent = Column(String(64), nullable=True)
     hash_actuel = Column(String(64), nullable=False, unique=True)
     signature_hmac = Column(String(64), nullable=False)
     
-    # Relations
     utilisateur = relationship('Utilisateur', back_populates='journaux')
     
     def __repr__(self):
@@ -374,18 +275,10 @@ class Journal(Base):
 
 class ClotureJournal(Base):
     """
-    Modèle ClotureJournal : Checkpoint quotidien pour l'intégrité de l'audit.
+    Point d'ancrage quotidien pour l'intégrité de l'audit.
     
-    Ce modèle représente une signature consolidée de tous les logs d'une journée.
-    Il permet de valider l'intégrité temporelle par blocs (jours).
-    
-    Attributs :
-        id : Identifiant unique
-        date : Date de la clôture (YYYY-MM-DD)
-        dernier_log_id : ID du dernier log inclus dans cette clôture
-        hash_racine : Hash consolidé (hash_actuel du dernier log)
-        signature_hmac : Signature HMAC du hash racine pour garantir l'origine
-        cloture_le : Date et heure de création de la clôture
+    Audit : Scelle l'état de la chaîne de hash à une date donnée pour faciliter 
+    la vérification par blocs temporels.
     """
     __tablename__ = 'clotures_journaux'
     
@@ -396,7 +289,6 @@ class ClotureJournal(Base):
     signature_hmac = Column(String(64), nullable=False)
     cloture_le = Column(DateTime, default=datetime.utcnow, nullable=False)
     
-    # Relation
     dernier_log = relationship('Journal')
     
     def __repr__(self):
@@ -405,14 +297,16 @@ class ClotureJournal(Base):
 
 class OperationEnAttente(Base):
     """
-    Modèle OperationEnAttente : Système Maker-Checker (Principe des 4 yeux).
-    Stocke une opération en attente de validation par un administrateur.
+    Système de validation à double commande (Maker-Checker).
+    
+    Audit : Isole les actions critiques (ex: retraits hors limites) en attente 
+    d'une approbation par un second utilisateur (Checker).
     """
     __tablename__ = 'operations_en_attente'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    type_operation = Column(String(50), nullable=False) # ex: 'RETRAIT_IMPORTANT', 'OUVERTURE_COMPTE'
-    payload = Column(JSON, nullable=False) # Données de l'opération en format JSON
+    type_operation = Column(String(50), nullable=False)
+    payload = Column(JSON, nullable=False)
 
     cree_par_id = Column(Integer, ForeignKey('utilisateurs.id'), nullable=False)
     valide_par_id = Column(Integer, ForeignKey('utilisateurs.id'), nullable=True)
@@ -421,11 +315,9 @@ class OperationEnAttente(Base):
     cree_le = Column(DateTime, default=datetime.utcnow, nullable=False)
     valide_le = Column(DateTime, nullable=True)
     
-    # Détails de la décision
     decision_reason = Column(String(255), nullable=True)
     decision_comment = Column(Text, nullable=True)
 
-    # Relations
     cree_par = relationship('Utilisateur', foreign_keys=[cree_par_id])
     valide_par = relationship('Utilisateur', foreign_keys=[valide_par_id])
 
@@ -435,9 +327,7 @@ class OperationEnAttente(Base):
 
 class Politique(Base):
     """
-    Table de configuration dynamique pour les politiques.
-    Clé/valeur où `valeur` peut être un JSON encodé pour des structures complexes.
-    Exemples de clés : 'mot_de_passe.duree_validite_jours', 'rate.retrait.limite_journaliere'
+    Gestion dynamique des règles de gestion et de sécurité (Policy Layer).
     """
     __tablename__ = 'politiques'
 
@@ -457,8 +347,7 @@ class Politique(Base):
 
 class HistoriquePolitique(Base):
     """
-    Historique des changements de politique pour audit et rollbacks simples.
-    Contient une copie de la valeur et un message de changement.
+    Trace de l'évolution des politiques de sécurité pour audit et traçabilité.
     """
     __tablename__ = 'historique_politiques'
 
@@ -474,8 +363,6 @@ class HistoriquePolitique(Base):
     def __repr__(self):
         return f"<HistoriquePolitique(politique_id={self.politique_id}, cle='{self.cle}', modifie_le='{self.modifie_le.isoformat()}')>"
 
-# Backwards compatibility aliases for code/tests referencing English names
-# Historically this project used `Policy` / `PolicyHistory` names; we keep aliases
-# so older scripts/tests continue to work while the canonical names are French.
+# Alias pour maintenir la compatibilité avec les scripts de migration existants.
 Policy = Politique
 PolicyHistory = HistoriquePolitique

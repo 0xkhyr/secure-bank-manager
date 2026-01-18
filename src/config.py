@@ -1,58 +1,58 @@
 """
-config.py - Configuration centrale de l'application
-
-Ce module charge et centralise toutes les configurations depuis le fichier .env
-incluant les règles métier bancaires spécifiques à la Tunisie (Dinar Tunisien).
+# Configuration Globale et Hardening
+# Sécurité : Centralise les secrets, les politiques de session et les réglages réseau.
+# Règle métier : Définit les constantes monétaires (Dinar Tunisien) et les plafonds opérationnels.
 """
 
 import os
 from decimal import Decimal
 from dotenv import load_dotenv
 
-# Charger les variables d'environnement
+# Sécurité : Chargement des variables d'environnement pour l'isolation des secrets hors du code source.
 load_dotenv()
 
 
 class Config:
-    """Configuration de l'application bancaire."""
+    """
+    # Sécurité : Classe de configuration immutable pendant l'exécution.
+    """
     
-    # Flask
+    # Sécurité : Clé secrète Flask pour la signature des cookies de session.
     SECRET_KEY = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production')
     FLASK_ENV = os.getenv('FLASK_ENV', 'development')
     FLASK_DEBUG = os.getenv('FLASK_DEBUG', '0') == '1'
     
-    # Base de données
+    # Règle métier : Emplacement de la persistance des données.
     DATABASE_PATH = os.getenv('DATABASE_PATH', 'data/banque.db')
     
-    # Sécurité
+    # Sécurité : Clé pour le scellement des logs d'audit (HMAC-SHA256).
     HMAC_SECRET_KEY = os.getenv('HMAC_SECRET_KEY', 'change-this-hmac-key')
+    # Sécurité : Protection contre les attaques par force brute sur l'authentification.
     MAX_LOGIN_ATTEMPTS = int(os.getenv('MAX_LOGIN_ATTEMPTS', '5'))
-    SESSION_TIMEOUT = int(os.getenv('SESSION_TIMEOUT', '3600'))  # en secondes
+    # Sécurité : Durée d'inactivité avant invalidation de la session.
+    SESSION_TIMEOUT = int(os.getenv('SESSION_TIMEOUT', '3600'))
     
-    # Audit Genesis Hash (SHA-256 of "SECURE_BANK_GENESIS")
-    # Il s'agit du point d'ancrage immuable de la chaîne d'audit.
+    # Audit : Hash de genèse pour l'ancrage de la chaîne de blocs d'audit.
     GENESIS_HASH = os.getenv('GENESIS_HASH', "8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918")
     
-    # Maker-Checker threshold for sensitive operations (e.g. withdrawals > threshold)
+    # Sécurité : Principe de Double Contrôle (Maker-Checker) au-delà de ce seuil.
     MAKER_CHECKER_THRESHOLD = Decimal(os.getenv('MAKER_CHECKER_THRESHOLD', '200.000'))
     
-    # Timezone - Tunisie (UTC+1)
+    # Règle métier : Localisation pour l'horodatage légal des transactions.
     TIMEZONE_OFFSET_HOURS = int(os.getenv('TIMEZONE_OFFSET_HOURS', '1'))
-    # Durée du verrouillage après dépassement des tentatives (en minutes)
+    # Sécurité : Délai de bannissement temporaire après échecs de connexion.
     LOCKOUT_MINUTES = int(os.getenv('LOCKOUT_MINUTES', '15'))
 
-    # Rate limiting configuration (used to mitigate lockout DoS)
-    # Format is the same as Flask-Limiter limits, e.g. '10 per minute'
+    # Sécurité : Limitation de débit (Rate Limiting) pour contrer le DoS de verrouillage de compte.
     LOGIN_RATE_LIMIT = os.getenv('LOGIN_RATE_LIMIT', '10 per minute')
     RATE_LIMIT_STORAGE_URI = os.getenv('RATE_LIMIT_STORAGE_URI', 'memory://')
 
-    # Session cookie hardening (defaults safe for production; can be overridden in dev via env)
-    # Use '1' to enable SESSION_COOKIE_SECURE in environments behind HTTPS
+    # Sécurité : Durcissement des cookies de session (Injection, CSRF, XSS).
     SESSION_COOKIE_SECURE = os.getenv('SESSION_COOKIE_SECURE', '0') == '1'
     SESSION_COOKIE_HTTPONLY = os.getenv('SESSION_COOKIE_HTTPONLY', '1') == '1'
     SESSION_COOKIE_SAMESITE = os.getenv('SESSION_COOKIE_SAMESITE', 'Lax')
     
-    # Règles métier bancaires (Tunisie - Dinar Tunisien)
+    # Règle métier : Paramètres monétaires et réglementaires (Tunisie).
     DEVISE = os.getenv('DEVISE', 'TND')
     SOLDE_MINIMUM_INITIAL = Decimal(os.getenv('SOLDE_MINIMUM_INITIAL', '250.000'))
     SOLDE_MINIMUM_COMPTE = Decimal(os.getenv('SOLDE_MINIMUM_COMPTE', '0.000'))
@@ -60,7 +60,9 @@ class Config:
     
     @staticmethod
     def afficher_config():
-        """Affiche la configuration actuelle (pour debug)."""
+        """
+        # Audit : Diagnostic à l'initialisation pour validation des paramètres opérationnels.
+        """
         print("=== Configuration de l'application ===")
         print(f"Devise : {Config.DEVISE}")
         print(f"Solde minimum initial : {Config.SOLDE_MINIMUM_INITIAL} {Config.DEVISE}")
@@ -70,6 +72,5 @@ class Config:
         print("=" * 40)
 
 
-# Pour tester ce module directement
 if __name__ == '__main__':
     Config.afficher_config()

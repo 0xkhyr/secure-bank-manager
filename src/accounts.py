@@ -1,10 +1,7 @@
 """
-accounts.py - Gestion des comptes bancaires
-
-Ce module gère les routes pour :
-- Créer un nouveau compte (avec dépôt initial)
-- Voir les détails et l'historique d'un compte
-- Clôturer un compte
+# Gestion des Comptes Bancaires
+# Règle métier : Ce module orchestre le cycle de vie des comptes (création, consultation, clôture).
+# Sécurité : Chaque action modifiant l'état d'un compte est rigoureusement auditée et soumise à habilitation.
 """
 
 from flask import (
@@ -23,8 +20,8 @@ accounts_bp = Blueprint('accounts', __name__, url_prefix='/accounts')
 @permission_required('accounts.create')
 def create(client_id):
     """
-    Crée un nouveau compte pour un client spécifique.
-    Nécessite un dépôt initial minimum.
+    # Règle métier : Ouverture de compte avec condition de dépôt initial minimum.
+    # Sécurité : Vérifie l'éligibilité du client (statut actif requis) avant toute allocation de ressource.
     """
     session = obtenir_session()
     client = session.query(Client).filter_by(id=client_id).first()
@@ -33,7 +30,7 @@ def create(client_id):
         flash('Client introuvable.', 'danger')
         return redirect(url_for('clients.index'))
 
-    # VERIFICATION: Le client doit être actif pour créer un compte
+    # Sécurité : Interdiction de créer des comptes pour des clients suspendus ou bloqués.
     client_statut = client.statut.value
     if client_statut != 'actif':
         flash(f'Action impossible : le client est {client_statut}.', 'danger')
@@ -45,6 +42,7 @@ def create(client_id):
 
         try:
             montant = Decimal(montant_initial)
+            # Règle métier : Le solde initial doit respecter le plancher configuré pour la banque.
             if montant < Config.SOLDE_MINIMUM_INITIAL:
                 error = f'Le dépôt initial doit être d\'au moins {Config.SOLDE_MINIMUM_INITIAL} {Config.DEVISE}.'
         except:
@@ -52,17 +50,17 @@ def create(client_id):
 
         if error is None:
             try:
-                # 1. Créer le compte
+                # Audit : Attribution d'un numéro de compte unique généré selon les standards bancaires.
                 nouveau_compte = Compte(
                     numero_compte=gen_numero_compte(),
                     client_id=client.id,
-                    solde=montant, # Le solde initial est le dépôt
+                    solde=montant, 
                     statut=StatutCompte.ACTIF
                 )
                 session.add(nouveau_compte)
-                session.flush() # Pour avoir l'ID du compte
+                session.flush() 
                 
-                # 2. Créer l'opération de dépôt initial
+                # Règle métier : Création automatique de la première opération pour la traçabilité du solde.
                 operation = Operation(
                     compte_id=nouveau_compte.id,
                     utilisateur_id=g.user.id,
@@ -74,7 +72,7 @@ def create(client_id):
                 )
                 session.add(operation)
                 
-                # 3. Audit
+                # Audit : Consignation de la création du compte avec l'identifiant du gestionnaire.
                 log_action(g.user.id, "CREATION_COMPTE", f"Compte {nouveau_compte.numero_compte}", 
                            {"client_id": client.id, "depot_initial": str(montant)})
                 
@@ -89,14 +87,16 @@ def create(client_id):
         if error is not None:
             flash(error, 'danger')
     
-    # Ne pas fermer la session avant de rendre le template car le template accède aux propriétés du client
     result = render_template('accounts/create.html', client=client, config=Config)
     return result
 
 @accounts_bp.route('/<numero_compte>')
 @login_required
 def view(numero_compte):
-    """Affiche les détails d'un compte et son historique (identifié par numero_compte)."""
+    """
+    # Audit : Consultation détaillée d'un compte et de son historique transactionnel.
+    # Traçabilité : L'accès aux données bancaires d'un client est un événement audité.
+    """
     session = obtenir_session()
     compte = session.query(Compte).filter_by(numero_compte=numero_compte).first()
     
@@ -104,13 +104,11 @@ def view(numero_compte):
         flash('Compte introuvable.', 'danger')
         return redirect(url_for('clients.index'))
     
-    # Accéder au client_id avant de fermer la session
     client_id = compte.client_id
-        
-    # Charger l'historique des opérations (plus récent en premier)
     operations = session.query(Operation).filter_by(compte_id=compte.id).order_by(Operation.date_operation.desc()).all()
     nb_operations = len(operations)
-    # Logger la consultation du compte et de l'historique
+
+    # Audit : Enregistrement de la consultation de l'historique bancaire.
     log_action(g.user.id, "CONSULTATION_COMPTE", f"Compte {compte.numero_compte}",
                {"compte_id": compte.id, "numero_compte": compte.numero_compte, 
                 "client_id": client_id, "nb_operations": nb_operations})
@@ -118,15 +116,12 @@ def view(numero_compte):
     response = render_template('accounts/view.html', compte=compte, client_id=client_id, operations=operations)
     return response
 
-
-
-
 @accounts_bp.route('/<int:id>/cloturer', methods=('POST',))
 @permission_required('accounts.close')
 def close(id):
     """
-    Clôture un compte bancaire.
-    Le solde doit être à 0.
+    # Règle métier : Clôture administrative d'un compte.
+    # Limitation : Un compte ne peut être clôturé tant que son solde n'est pas nul (obligation légale).
     """
     session = obtenir_session()
     compte = session.query(Compte).filter_by(id=id).first()
@@ -139,14 +134,12 @@ def close(id):
         flash('Impossible de clôturer un compte avec un solde positif. Veuillez tout retirer d\'abord.', 'danger')
         return redirect(url_for('accounts.view', numero_compte=compte.numero_compte))
     
-    # Récupérer la raison de clôture
     raison = request.form.get('raison', 'Demande client')
-    
-    # Extraire client_id avant de fermer la session
     client_id = compte.client_id
         
     try:
         compte.statut = StatutCompte.FERME
+        # Audit : Traçabilité du motif de clôture et du responsable.
         log_action(g.user.id, "CLOTURE_COMPTE", f"Compte {compte.numero_compte}", 
                    {"raison": raison})
         session.commit()
@@ -159,11 +152,11 @@ def close(id):
 
 
 @accounts_bp.route('/<int:id>/reopen', methods=('POST',))
-@permission_required('accounts.close')  # Same permission as closing
+@permission_required('accounts.close')
 def reopen(id):
     """
-    Réouvre un compte bancaire fermé.
-    Permet à un administrateur de réactiver un compte clôturé.
+    # Règle métier : Réactivation d'un compte précédemment clôturé.
+    # Sécurité : Vérifie que le titulaire est toujours autorisé (non figurant sur liste noire).
     """
     session = obtenir_session()
     compte = session.query(Compte).filter_by(id=id).first()
@@ -176,20 +169,18 @@ def reopen(id):
         flash('Ce compte n\'est pas fermé.', 'danger')
         return redirect(url_for('accounts.view', numero_compte=compte.numero_compte))
 
-    # VERIFICATION: Le client doit être actif pour réouvrir un compte
+    # Sécurité : Empêche la réouverture automatique si le client n'est plus en règle avec la banque.
     titulaire_statut = compte.client.statut.value
     if titulaire_statut != 'actif':
         flash(f'Action impossible : le titulaire du compte est {titulaire_statut}.', 'danger')
         return redirect(url_for('accounts.view', numero_compte=compte.numero_compte))
     
-    # Récupérer la raison de réouverture
     raison = request.form.get('raison', 'Décision administrative')
-    
-    # Extraire compte_id avant de fermer la session
     compte_id = compte.id
         
     try:
         compte.statut = StatutCompte.ACTIF
+        # Audit : Toute réactivation doit être justifiée et imputable à un gestionnaire.
         log_action(g.user.id, "REOUVERTURE_COMPTE", f"Compte {compte.numero_compte}", 
                    {"raison": raison})
         session.commit()
